@@ -40,10 +40,11 @@ sai daqui — não há chave de API em lugar nenhum do repositório.
 7. [Onde cada estratégia errou, nominalmente](#onde-cada-estratégia-errou-nominalmente)
 8. [Como escolher](#como-escolher)
 9. [Como rodar](#como-rodar)
-10. [Arquitetura](#arquitetura)
-11. [O que NÃO está implementado](#o-que-não-está-implementado)
-12. [Limitações — o que estes números NÃO provam](#limitações--o-que-estes-números-não-provam)
-13. [Conclusão prática](#conclusão-prática)
+10. [A tela](#a-tela)
+11. [Arquitetura](#arquitetura)
+12. [O que NÃO está implementado](#o-que-não-está-implementado)
+13. [Limitações — o que estes números NÃO provam](#limitações--o-que-estes-números-não-provam)
+14. [Conclusão prática](#conclusão-prática)
 
 ---
 
@@ -597,6 +598,13 @@ Inspecionar uma discordância à mão:
 task query -- "P-101 aquecendo acima do normal"
 ```
 
+Ou pela tela, que roda a consulta nas seis estratégias de uma vez e marca o
+gabarito em cada resultado (detalhes em [A tela](#a-tela)):
+
+```bash
+task web          # http://127.0.0.1:8081
+```
+
 Derrubar só o banco desta PoC (a porta 5434; o 5433 da PoC de embedding fica de
 pé):
 
@@ -643,6 +651,85 @@ Restaurado o texto, `erros: 0`.
 
 ---
 
+## A tela
+
+A tabela deste README diz *que* as estratégias discordam. A tela mostra **onde**:
+a mesma consulta sai nas seis ao mesmo tempo, lado a lado, com o gabarito
+marcado em cada resultado.
+
+```bash
+task web:build    # compila o front para dentro do pacote Python
+task web          # http://127.0.0.1:8081 (compila sozinho se faltar o bundle)
+task web:check    # CANÁRIO do front — todas as rotas e o bundle, sem browser
+task web:shots    # um print de cada aba (exige 'task web' de pé)
+```
+
+Quatro abas, cada uma respondendo a uma pergunta diferente:
+
+| Aba | Responde |
+|---|---|
+| **Buscar** | as 6 estratégias sobre a mesma consulta, com acerto, latência e a marca de **faminta** quando devolveu menos que `k` |
+| **O que ficou guardado** | o que existe no banco para um documento: lexemas com `tf`/`df`/IDF, as 24 primeiras dimensões do vetor e o texto indexado |
+| **Placar medido** | a mesma tabela do `results/evaluation.json`, servida byte a byte — não recalculada |
+| **Onde discordam** | os 15 casos em que as estratégias divergem, com id, texto da consulta e o rank que cada uma deu |
+
+Cada aba tem **URL própria** (`?tab=score`, `?tab=document&doc=ch_5506`). Não é
+enfeite: sem isso não existe link para uma aba, e nenhuma ferramenta que fotografa
+a tela chega às outras três — foi o que dispensou um script de CDP com websocket
+só para clicar em botão.
+
+Decisões que valem registro:
+
+- **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
+  `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
+  precisa de Node — precisa do bundle, que já está no lugar. Medido: `index.html`
+  554 B, CSS 131,69 kB (21,54 kB gzip), JS 234,37 kB (72,31 kB gzip).
+- **A barra de pontuação normaliza dentro da coluna, nunca entre estratégias.**
+  BM25 vai de 1,5 a 28; cosseno de 0,29 a 0,78; RRF são frações de 1/61. Uma
+  escala comum faria a barra do RRF sumir e dar a impressão de que a fusão
+  pontua mal — o E1 mostra que o problema é justamente esse tipo de comparação.
+- **O tour de código lê o disco, não a memória.** `code_tour.py` usa `ast` em vez
+  de `inspect.getsource` — assim o processo web mostra o corpo de
+  `CrossEncoderReranker` **sem importar torch**. O canário confere linha a linha:
+  a primeira linha de cada bloco tem que bater com a linha real do arquivo.
+- **`/api/measured` devolve o JSON do disco, sem tocar.** Se a tela recalculasse,
+  ela poderia discordar do `REPORT.md` e ninguém notaria. O canário compara os
+  dois byte a byte.
+
+### O terceiro canário: a tela também mente ✅ medido
+
+Tela é a parte que ninguém testa — abre bonita e mente calada. `task web:check`
+faz **95 asserções** em 8 seções contra o servidor no ar, sem browser, e não
+aborta na primeira falha (uma rodada mostra tudo que está quebrado). Ele pega
+três coisas que passam por qualquer olhada:
+
+1. **rota 200 com o campo errado** — o front lê `first_relevant`; se a chave
+   sumir num refactor, o cartão para de marcar acerto e continua verde;
+2. **bundle antigo** — build interrompido deixa o HTML apontando para um asset
+   apagado. O servidor devolve 404 só para aquele arquivo e a página fica
+   **branca**, sem uma linha de erro no terminal. Por isso o canário busca cada
+   `src`/`href` do HTML e exige 200;
+3. **número exibido divergindo do medido** — `/api/measured` × `results/*.json`.
+
+E ele já se pagou duas vezes, que é o teste que importa. Pegou um HTTP 500 em
+`/api/document/proc_cip` — `'Vector' object is not iterable`, porque o
+`register_vector` do pgvector devolve um objeto que só entrega os números por
+`to_list()`. E acusou um `results/index_stats.json` que **não existe**: era um
+nome inventado no código do servidor, e o tamanho de índice já vinha medido do
+catálogo do Postgres.
+
+O que o canário **não** pega, e por isso `task web:shots` existe: a tela anunciou
+"26 operacionais + 88 da Wikipédia" onde o corpus tem 34 alvos e 80 distratores.
+Rota 200, contrato certo, soma fechando — e o rótulo errado. A causa é a
+confusão de dois eixos independentes: `source` é a **origem** (à mão × Wikipédia)
+e `kind` é a **forma** (registro × prosa). Os 8 procedimentos são `handwritten`
+**e** `prose` ao mesmo tempo, então contar alvo por `kind` perde oito. Só
+apareceu **olhando o print**. Hoje há duas asserções que impedem a recaída — as
+duas somas têm que fechar separadamente, e os dois eixos não podem colapsar no
+mesmo número.
+
+---
+
 ## Arquitetura
 
 Ports & Adapters, com uma decisão de projeto que é a tese inteira: `Retriever` e
@@ -665,16 +752,27 @@ src/retrieval_poc/
 │   └── registry.py            o "cmd/main": wiring único
 ├── corpus/                    build.py (alvos + distratores) · queries.py (gabarito)
 ├── evaluation/                metrics.py · runner.py · experiments.py
+├── web/
+│   ├── app.py                 FastAPI: 7 rotas, adapter DRIVING da mesma pilha
+│   ├── code_tour.py           corpo das funções lido por `ast` (sem importar torch)
+│   └── static/                bundle emitido pelo `pnpm build` — servido daqui
 ├── report.py                  results/REPORT.md
 └── cli.py                     corpus · index · verify · eval · experiments · report · query
 
+frontend/                      React 19 + Vite + Kumo — fonte da tela, dependência
+                               de BUILD (o pacote Python não precisa de Node)
+
 tools/check_readme.py          canário da documentação (fora do pacote: não é
-                               parte da PoC, é quem audita o texto sobre ela)
+tools/web_check.py             parte da PoC, é quem audita a PoC — texto e tela)
 ```
 
-**2 069 linhas de Python**, 11 scripts numerados em `scripts/` (`00-setup` a
-`10-failures`), e um `Taskfile.yaml`
+**2 667 linhas de Python**, 15 scripts numerados em `scripts/` (`00-setup` a
+`14-web-shots`), e um `Taskfile.yaml`
 que chama script — nunca comando ad-hoc.
+
+O servidor web é **adapter driving**, no mesmo sentido do `cli.py`: ele traduz
+HTTP para a pilha construída por `registry.py` e não conhece nenhum motor de
+busca. Trocar `ts_rank` por SPLADE não muda uma linha de `web/`.
 
 Por que os dois contratos são distintos:
 

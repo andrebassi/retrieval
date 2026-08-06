@@ -139,6 +139,81 @@ class DocumentStore:
             )
             return int(cur.fetchone()[0])
 
+    def document(self, doc_id: str) -> dict | None:
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT doc_id, title, kind, source, body FROM documents WHERE doc_id = %s",
+                (doc_id,),
+            )
+            row = cur.fetchone()
+        if row is None:
+            return None
+        keys = ("doc_id", "title", "kind", "source", "body")
+        return dict(zip(keys, row))
+
+    def catalog(self) -> list[dict]:
+        """Lista leve para a galeria — sem o corpo, que é o campo pesado."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT d.doc_id, d.title, d.kind, d.source,"
+                "       length(d.body) AS chars, coalesce(s.dl, 0)::int AS lexemes"
+                " FROM documents d LEFT JOIN lex_stats s ON s.doc_id = d.doc_id"
+                " ORDER BY d.kind, d.doc_id"
+            )
+            keys = ("doc_id", "title", "kind", "source", "chars", "lexemes")
+            return [dict(zip(keys, row)) for row in cur.fetchall()]
+
+    def lexemes_of(self, doc_id: str, limit: int = 40) -> list[dict]:
+        """Os termos que o índice invertido guardou deste documento, com o IDF.
+
+        O IDF sai da mesma expressão do `Bm25Retriever` de propósito: a tela
+        mostra por que um termo pesa mais que outro, e o número exibido precisa
+        ser o número usado no ranking — não uma reconstrução parecida.
+        """
+        with self.conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH n AS (SELECT count(*)::float AS n_docs FROM documents),
+                df AS (
+                    SELECT term, count(DISTINCT doc_id)::float AS df FROM lex_terms GROUP BY term
+                )
+                SELECT lt.term, lt.tf, df.df::int,
+                       ln(1 + (n.n_docs - df.df + 0.5) / (df.df + 0.5)) AS idf
+                FROM lex_terms lt JOIN df ON df.term = lt.term CROSS JOIN n
+                WHERE lt.doc_id = %s
+                ORDER BY idf DESC, lt.tf DESC, lt.term
+                LIMIT %s
+                """,
+                (doc_id, limit),
+            )
+            return [
+                {"term": r[0], "tf": r[1], "df": r[2], "idf": round(float(r[3]), 3)}
+                for r in cur.fetchall()
+            ]
+
+    def vector_of(self, doc_id: str) -> list[float] | None:
+        with self.conn.cursor() as cur:
+            cur.execute("SELECT embedding FROM documents WHERE doc_id = %s", (doc_id,))
+            row = cur.fetchone()
+        if row is None or row[0] is None:
+            return None
+        # `register_vector` devolve um `pgvector.Vector`, que NÃO é iterável —
+        # `[float(v) for v in row[0]]` estoura com `'Vector' object is not
+        # iterable`. Só o `to_list()` sai da coluna sem passar por numpy.
+        value = row[0]
+        return [float(v) for v in (value.to_list() if hasattr(value, "to_list") else value)]
+
+    def index_sizes(self) -> list[dict]:
+        """Tamanho de cada índice, do catálogo. É o preço de disco de cada via."""
+        with self.conn.cursor() as cur:
+            cur.execute(
+                "SELECT indexrelname, pg_relation_size(indexrelid),"
+                "       pg_size_pretty(pg_relation_size(indexrelid))"
+                " FROM pg_stat_user_indexes WHERE relname = 'documents'"
+                " ORDER BY pg_relation_size(indexrelid) DESC"
+            )
+            return [{"name": r[0], "bytes": int(r[1]), "pretty": r[2]} for r in cur.fetchall()]
+
     def lexical_summary(self) -> dict:
         with self.conn.cursor() as cur:
             # Duas consultas de propósito: juntar as tabelas antes do `avg`

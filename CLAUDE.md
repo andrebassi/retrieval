@@ -27,7 +27,11 @@ distratores da Wikipédia em pt). Gabarito: 37 consultas em 3 famílias.
    entre rodadas, e um canário que apita por rotina deixa de ser lido. Rode-o
    depois de reescrever os números, como último passo.
 2. **`task verify` roda antes de qualquer medição.** É o canário. Métrica que
-   nunca falha não está medindo.
+   nunca falha não está medindo. Mexeu na tela? **`task web:check`** também é
+   obrigatório — e, quando o que mudou é layout ou rótulo, `task web:shots` e
+   **olhar o print**. O canário prova que a rota responde, não que a tela diz a
+   verdade: o rótulo errado de corpus (armadilha 14) passou por 95 asserções
+   verdes e só apareceu na imagem.
 3. **Postgres só por Nix, na porta 5434.** Nunca Docker (rule 23). O 5432 é o do
    sistema e o 5433 é o do `image-embedding-poc` — derrubar qualquer um dos dois
    é acidente, não colateral aceitável.
@@ -66,8 +70,15 @@ src/retrieval_poc/
 │   ├── metrics.py      hit@k · MRR · percentil · starved
 │   ├── runner.py       roda todas as estratégias → results/evaluation.json + hits.json
 │   └── experiments.py  E1–E4 → results/experiments.json
+├── web/
+│   ├── app.py          FastAPI — 7 rotas; adapter DRIVING, igual ao cli.py
+│   ├── code_tour.py    corpo das funções lido por `ast` (NÃO por inspect)
+│   └── static/         bundle do `pnpm build`; é o que o servidor entrega
 ├── report.py           gera results/REPORT.md
 └── cli.py              subcomandos, um por etapa do pipeline
+
+frontend/               React 19 + Vite 6 + @cloudflare/kumo — fonte da tela
+tools/web_check.py      canário do front, sem browser
 ```
 
 **A decisão que sustenta o projeto**: `Retriever` e `Reranker` são protocolos
@@ -95,6 +106,10 @@ task eval              # 6 estratégias × 37 consultas
 task experiments       # E1–E4
 task report            # results/REPORT.md
 task query -- "P-101 aquecendo acima do normal"
+task web:build         # compila o front para src/retrieval_poc/web/static
+task web               # tela em http://127.0.0.1:8081 (compila se faltar bundle)
+task web:check         # CANÁRIO do front — 95 asserções, 8 seções, sem browser
+task web:shots         # um print por aba (exige 'task web' de pé)
 task clean             # apaga corpus e resultados, mantém o banco
 ```
 
@@ -118,6 +133,12 @@ task "passa".
 | 10 | Diagnosticar processo travado com `ps \| grep` e não achar nada | o wrapper `rtk` filtra a listagem | `rtk proxy ps -eo pid,ppid,etime,command`. Para a pilha: `sample <pid> 3 -f /tmp/x.txt` — foi o que mostrou o `__cxa_finalize_ranges` da linha acima |
 | 11 | Verificador de âncoras acusa `por-família--onde-a-média-mente` como quebrada, e o link funciona no GitHub | o GitHub **descarta** `—` e emoji em vez de virar hífen, e **não colapsa** espaços — daí os dois hífens | `re.sub(r"[^\w\s\-]", "", …)` e depois `.replace(" ", "-")`, nunca `re.sub(r"\s+", "-", …)`. Está em `tools/check_readme.py` |
 | 12 | README fica mentindo depois de um `task all` novo | latência muda a cada rodada; a disciplina de reescrever à mão não se sustenta | `task check:readme`. Ele já pegou 3 divergências na primeira execução — inclusive uma criada pelo próprio commit que o introduziu (o script 09 virou o 10º e o README dizia 9) |
+| 13 | `/api/document/<id>` devolve **500** com `TypeError: 'Vector' object is not iterable` | `register_vector` do pgvector devolve um objeto `Vector`, não uma lista — `[float(v) for v in row[0]]` estoura | `value.to_list() if hasattr(value, "to_list") else value`. É o único caminho que sai da coluna sem passar por numpy |
+| 14 | A tela anuncia "26 operacionais + 88 da Wikipédia" e o corpus tem **34 alvos + 80 distratores** | `source` (origem: à mão × Wikipédia) e `kind` (forma: registro × prosa) são **eixos independentes**; os 8 procedimentos são `handwritten` **e** `prose`, então contar alvo por `kind` perde oito | contar cada eixo pela sua coluna. O `web_check.py` tem duas asserções que impedem a recaída: as duas somas fecham separadamente, e `handwritten != records` |
+| 15 | Layout colapsa sem erro nenhum: `grid-cols-3 gap-4` compila e não renderiza | o `@cloudflare/kumo` standalone traz só as utilitárias que os **componentes dele** usam — não é um Tailwind completo | layout em classes `.poc-*` à mão; do Kumo só os tokens `--kumo-*`. Falha silenciosa é o pior tipo: nada no terminal, nada no console |
+| 16 | `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` no build do front | pnpm 11 aborta install não-interativo quando precisa recriar `node_modules`, e pede aprovação para script de pós-instalação | `allowBuilds`/`onlyBuiltDependencies` no `pnpm-workspace.yaml` **mais** `CI=true`. O primeiro resolve a aprovação, o segundo resolve o prompt — precisa dos dois |
+| 17 | Print de uma aba exige clicar num botão, e clicar exige CDP com websocket | a aba vivia só em estado do React | cada aba tem URL (`?tab=…&doc=…`, via `history.replaceState`). O `--screenshot` do Chrome basta, e ainda ganha-se link compartilhável. `replaceState` e não `pushState`: senão cada clique enche o histórico |
+| 18 | `results/index_stats.json` "ausente" no canário | o nome foi **inventado** no código do servidor — nenhum script grava esse arquivo | `rtk proxy grep -rn "index_stats"` mostrou que só aparecia no meu código. O tamanho de índice já vem medido do catálogo do Postgres em `/api/state`; um JSON com esse número envelheceria em silêncio |
 
 ## Como interpretar os resultados
 
@@ -156,4 +177,11 @@ task "passa".
 - Acrescentou consulta ao `data/queries.yaml`? `corpus/queries.py` aborta se o
   `relevant` apontar para documento inexistente ou se a família for desconhecida
   — é de propósito, não contorne.
+- Mexeu em `frontend/`? O servidor **não** lê aquele diretório — ele serve
+  `src/retrieval_poc/web/static/`. Sem `task web:build` a mudança não aparece, e
+  a tela continua de pé mostrando o bundle velho, sem nenhum aviso.
+- Somou rota em `web/app.py`? Somar asserção em `tools/web_check.py` faz parte da
+  mesma mudança. Rota sem canário é rota que vai quebrar calada.
 - Não versione `data/pg/`. É o datadir do Postgres.
+- `src/retrieval_poc/web/static/` **é versionado** de propósito: é o que faz a
+  PoC rodar sem Node. Se estiver no `.gitignore`, quem clonar tem 404 na cara.

@@ -73,6 +73,26 @@ tasks:
     cmds:
       - bash scripts/09-check-readme.sh 2>&1 | tee {{.LOG}}-check-readme.log
 
+  web:build:
+    desc: "Compila o front para dentro do pacote Python (web/static)"
+    cmds:
+      - bash scripts/11-web-build.sh 2>&1 | tee {{.LOG}}-web-build.log
+
+  web:
+    desc: "Sobe a tela em http://127.0.0.1:8081 (compila o front se faltar)"
+    cmds:
+      - bash scripts/12-web.sh 2>&1 | tee {{.LOG}}-web.log
+
+  web:check:
+    desc: "Canário do front: todas as rotas e o bundle, sem browser"
+    cmds:
+      - bash scripts/13-web-check.sh 2>&1 | tee {{.LOG}}-web-check.log
+
+  web:shots:
+    desc: "Um print de cada aba (exige 'task web' de pé em outro terminal)"
+    cmds:
+      - bash scripts/14-web-shots.sh 2>&1 | tee {{.LOG}}-web-shots.log
+
   query:
     desc: 'Uma consulta em todas as estratégias — task query -- "P-101 aquecendo"'
     cmds:

@@ -1,0 +1,11 @@
+# pnpm 11 não lê mais o campo "pnpm" do package.json — configuração vem daqui.
+# esbuild precisa do postinstall para baixar o binário nativo; sem liberar, o
+# vite não builda.
+#
+# As duas chaves são o MESMO ajuste em versões diferentes do pnpm: o 10 lê
+# `onlyBuiltDependencies`, o 11 lê `allowBuilds`. Manter as duas porque a
+# máquina alterna entre elas, e a chave não reconhecida é ignorada em silêncio.
+onlyBuiltDependencies:
+  - esbuild
+allowBuilds:
+  esbuild: true

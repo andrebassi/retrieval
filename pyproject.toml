@@ -16,6 +16,11 @@ dependencies = [
     # textos ao mesmo tempo — e a única que não dá para pré-computar.
     "sentence-transformers>=3.3.0",
     "torch>=2.5.0",
+    # Front: o servidor só serve o bundle já compilado e as rotas de leitura.
+    # Node é dependência de BUILD do `frontend/`, não de execução — quem roda a
+    # PoC precisa de Python e nada mais.
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
 ]
 
 [project.scripts]
