@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Estado do Postgres do Nix
+.data/
+data/pg/
+
+# Corpus baixado e resultados: reprodutíveis por `task all`, e o corpus tem
+# texto de terceiro (Wikipédia). O REPORT.md é versionado de propósito — é a
+# entrega.
+data/corpus.jsonl
+data/corpus.json
+results/*.json
+!results/REPORT.md

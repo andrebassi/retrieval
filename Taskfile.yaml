@@ -1,0 +1,96 @@
+version: "3"
+
+# `pipefail` no topo não é detalhe: sem ele, `comando | tee log` devolve o
+# status do `tee`, e toda task passa a "dar certo" mesmo quando o comando
+# quebrou. Já custou uma tabela de resultados inteira em outra PoC.
+set: [pipefail]
+
+vars:
+  LOG: /tmp/retrieval-poc
+
+tasks:
+  default:
+    cmds: [task -l]
+
+  setup:
+    desc: "Ambiente Python + modelo de embedding no Ollama"
+    cmds:
+      - bash scripts/00-setup.sh 2>&1 | tee {{.LOG}}-setup.log
+
+  db:up:
+    desc: "Sobe Postgres 17 + pgvector (Nix, porta 5434)"
+    cmds:
+      - bash scripts/01-db-up.sh 2>&1 | tee {{.LOG}}-db.log
+
+  db:down:
+    desc: "Derruba o Postgres desta PoC"
+    cmds:
+      - bash scripts/02-db-down.sh 2>&1 | tee {{.LOG}}-db-down.log
+
+  db:psql:
+    desc: "Abre psql no banco da PoC"
+    cmds:
+      - psql postgresql://postgres@127.0.0.1:5434/retrieval
+
+  corpus:
+    desc: "Monta o corpus: alvos escritos à mão + distratores da Wikipédia"
+    cmds:
+      - bash scripts/03-corpus.sh 2>&1 | tee {{.LOG}}-corpus.log
+
+  index:
+    desc: "Grava documentos, vetores, índice HNSW e estatística léxica"
+    deps: [db:up]
+    cmds:
+      - bash scripts/04-index.sh 2>&1 | tee {{.LOG}}-index.log
+
+  verify:
+    desc: "Canário: prova que o índice enxerga antes de qualquer medição"
+    cmds:
+      - bash scripts/07-verify.sh 2>&1 | tee {{.LOG}}-verify.log
+
+  eval:
+    desc: "Mede as 6 estratégias sobre as 37 consultas"
+    cmds:
+      - bash scripts/05-eval.sh 2>&1 | tee {{.LOG}}-eval.log
+
+  experiments:
+    desc: "Roda E1–E4 (escala, fórmula, custo do reranker, o vazio)"
+    cmds:
+      - bash scripts/06-experiments.sh 2>&1 | tee {{.LOG}}-experiments.log
+
+  report:
+    desc: "Gera results/REPORT.md a partir dos JSON medidos"
+    cmds:
+      - bash scripts/08-report.sh 2>&1 | tee {{.LOG}}-report.log
+
+  check:readme:
+    desc: "Canário da documentação: número do README × número medido"
+    cmds:
+      - bash scripts/09-check-readme.sh 2>&1 | tee {{.LOG}}-check-readme.log
+
+  query:
+    desc: 'Uma consulta em todas as estratégias — task query -- "P-101 aquecendo"'
+    cmds:
+      - .venv/bin/poc query "{{.CLI_ARGS}}"
+
+  all:
+    desc: "Pipeline completo: setup → corpus → index → verify → eval → experiments → report"
+    cmds:
+      - task: setup
+      - task: db:up
+      - task: corpus
+      - task: index
+      - task: verify
+      - task: eval
+      - task: experiments
+      - task: report
+      # `check:readme` NÃO entra aqui de propósito: latência oscila ~6% entre
+      # rodadas, então o canário acusaria divergência ao fim de todo `task all`
+      # e o pipeline terminaria vermelho por rotina. Canário que sempre apita
+      # vira ruído e some da atenção — que é exatamente o defeito que ele
+      # existe para evitar. Rode-o depois de reescrever os números.
+
+  clean:
+    desc: "Apaga corpus e resultados (mantém o banco)"
+    cmds:
+      - rm -rf results data/corpus.jsonl data/corpus.json

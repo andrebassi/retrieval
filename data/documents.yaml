@@ -1,0 +1,519 @@
+# Documentos-alvo da PoC — escritos à mão, de propósito.
+#
+# O gabarito das consultas aponta para estes documentos, então precisa ser
+# seguro: com corpus baixado de fora não dá para afirmar qual trecho responde
+# a "por que a máquina superaqueceu". Aqui dá, porque o texto foi escrito
+# sabendo qual pergunta ele responde.
+#
+# Os distratores vêm da Wikipédia em português (data/corpus.jsonl, montado por
+# `task corpus`) e não são alvo de nenhuma consulta — existem para que o índice
+# tenha o que confundir.
+#
+# Regra que sustenta a família `literal`: todo identificador citado numa
+# consulta aparece em UM único documento. `task verify` reprova se isso deixar
+# de valer.
+#
+# Domínio: manutenção industrial de uma fábrica de bebidas. Escolhido porque
+# junta identificador rígido (TAG de equipamento, código de peça, nota fiscal)
+# com descrição em prosa do mesmo evento — que é exatamente onde léxico e
+# semântico discordam.
+
+documents:
+  # ---------------------------------------------------------------- ordens de serviço
+  - id: os_4471
+    title: "Ordem de serviço OS-4471 — parada não programada do compressor P-101"
+    kind: record
+    body: |
+      Equipamento: compressor de amônia P-101, sala de máquinas 2.
+      Abertura: 14/03 às 03h12, por parada não programada.
+      Sintoma relatado pelo operador do turno da madrugada: ruído metálico
+      crescente seguido de desarme por temperatura de descarga acima do limite.
+      Temperatura registrada no momento do desarme: 118 graus.
+      Causa identificada: rolamento do eixo principal com folga fora de
+      especificação, código de peça CMP-8830-B, provocando atrito e elevação
+      de temperatura. O óleo coletado apresentava partículas metálicas.
+      Ação executada: substituição do rolamento, troca completa do óleo
+      lubrificante e realinhamento do acoplamento. Equipamento liberado às
+      11h40 do mesmo dia. Executante: Marcos Ferraz, matrícula 20871.
+
+  - id: os_4472
+    title: "Ordem de serviço OS-4472 — vazamento na linha de retorno da envasadora"
+    kind: record
+    body: |
+      Equipamento: envasadora rotativa E-204, linha 3.
+      Abertura: 16/03 às 09h05, em manutenção corretiva.
+      Sintoma: poça de fluido sob o painel lateral e queda gradual da pressão
+      de trabalho ao longo do turno. A linha foi mantida em operação reduzida.
+      Causa: trinca por fadiga na conexão de retorno, junto à solda de topo.
+      A vibração da bomba de recalque foi apontada como origem provável, já
+      registrada em inspeção anterior sem tratativa.
+      Ação: substituição do trecho de tubulação, troca da vedação e reaperto
+      com torque controlado de 42 N·m. Teste de estanqueidade aprovado a 1,5
+      vez a pressão nominal. Recomendada análise de vibração da bomba.
+
+  - id: os_4473
+    title: "Ordem de serviço OS-4473 — troca do filtro de ar da caldeira CB-02"
+    kind: record
+    body: |
+      Equipamento: caldeira flamotubular CB-02.
+      Manutenção preventiva conforme plano trimestral.
+      Executado em 21/03, das 07h00 às 08h30, com o equipamento frio.
+      Atividades: substituição dos elementos filtrantes do ar de combustão,
+      limpeza da tomada de ar externa e verificação do pressostato de segurança.
+      Leitura de pressão diferencial antes da troca: 38 mmH2O. Depois: 11 mmH2O.
+      Nenhuma anomalia encontrada no queimador. Próxima intervenção prevista
+      para o trimestre seguinte, mesma frequência.
+
+  - id: os_4474
+    title: "Ordem de serviço OS-4474 — desalinhamento da esteira transportadora TR-17"
+    kind: record
+    body: |
+      Equipamento: esteira transportadora TR-17, saída do túnel de resfriamento.
+      Abertura: 24/03, por reclamação de queda de embalagens no trecho curvo.
+      Sintoma: garrafas tombando na transferência entre o trecho reto e a curva,
+      com perda média estimada em 40 unidades por hora de operação.
+      Causa: guia lateral deslocada após choque mecânico não reportado, somada
+      a desgaste avançado do rolete tensor R-9.
+      Ação: reposicionamento da guia com gabarito, substituição do rolete tensor
+      e ajuste do tensionamento da correia. Perda zerada no turno seguinte.
+
+  - id: os_4475
+    title: "Ordem de serviço OS-4475 — falha intermitente no inversor do agitador AG-05"
+    kind: record
+    body: |
+      Equipamento: agitador de tanque AG-05, área de xaroparia.
+      Abertura: 28/03, falha intermitente de partida.
+      Sintoma: o inversor desarma na partida em cerca de uma tentativa a cada
+      cinco, exibindo o código de erro E-217 no display frontal. Rearme manual
+      restabelece a operação e o equipamento roda normalmente até a próxima
+      parada.
+      Diagnóstico: o código corresponde a sobrecorrente na aceleração. A rampa
+      estava configurada em 2 segundos, muito curta para a inércia do
+      conjunto com o tanque cheio.
+      Ação: rampa de aceleração ajustada para 8 segundos. Sem novos desarmes em
+      uma semana de acompanhamento.
+
+  - id: os_4476
+    title: "Ordem de serviço OS-4476 — calibração da célula de carga da balança BL-11"
+    kind: record
+    body: |
+      Equipamento: balança dinâmica BL-11, controle de peso da linha 2.
+      Motivo: divergência sistemática entre o peso indicado e o peso conferido
+      em balança de bancada aferida.
+      Desvio medido antes do ajuste: 6,4 gramas para menos, constante ao longo
+      de toda a faixa. Desvio depois: 0,3 grama.
+      Procedimento: calibração com massas padrão rastreáveis, certificado
+      número 33-2291, e substituição do cabo blindado da célula, que
+      apresentava malha rompida junto ao prensa-cabo.
+      Equipamento liberado para uso fiscal após conferência.
+
+  - id: os_4477
+    title: "Ordem de serviço OS-4477 — entupimento do trocador de calor TC-03"
+    kind: record
+    body: |
+      Equipamento: trocador de calor a placas TC-03, pasteurizador.
+      Sintoma: queda de rendimento térmico ao longo de duas semanas, com o
+      produto saindo abaixo da temperatura de processo e aumento do consumo de
+      vapor para compensar.
+      Causa: incrustação nas placas do estágio de recuperação, característica
+      de limpeza química insuficiente. O ciclo CIP estava rodando com soda a
+      1,2 por cento, abaixo do especificado.
+      Ação: desmontagem completa, limpeza manual placa a placa, substituição de
+      12 juntas ressecadas e correção da concentração do CIP.
+      Rendimento térmico restabelecido ao valor de projeto.
+
+  - id: os_4478
+    title: "Ordem de serviço OS-4478 — infiltração no painel elétrico QD-08"
+    kind: record
+    body: |
+      Equipamento: quadro de distribuição QD-08, área externa junto à doca.
+      Abertura emergencial em 02/04, após chuva forte durante a noite.
+      Sintoma: disjuntor geral aberto e oxidação visível nos bornes inferiores.
+      Causa: prensa-cabo superior sem vedação e grau de proteção do painel
+      incompatível com instalação exposta ao tempo.
+      Ação imediata: secagem, limpeza dos contatos e reaperto. Ação definitiva
+      pendente: substituição do invólucro por outro com grau de proteção IP66 e
+      instalação de cobertura. Risco de reincidência considerado alto enquanto
+      a ação definitiva não for executada.
+
+  - id: os_4479
+    title: "Ordem de serviço OS-4479 — ruído no redutor do misturador MX-06"
+    kind: record
+    body: |
+      Equipamento: redutor de engrenagens do misturador MX-06.
+      Sintoma: ruído grave e cíclico, sincronizado com a rotação de saída,
+      audível a partir de cinco metros do equipamento.
+      Análise: espectro de vibração com pico na frequência de engrenamento e
+      bandas laterais, compatível com dente lascado no pinhão intermediário.
+      Confirmado por inspeção boroscópica.
+      Ação: substituição do par de engrenagens, troca do óleo e verificação da
+      folga axial. Peça de reposição solicitada pelo pedido de compra 77-4410.
+      Tempo total de máquina parada: 26 horas.
+
+  - id: os_4480
+    title: "Ordem de serviço OS-4480 — sensor de nível do tanque TQ-12 travado"
+    kind: record
+    body: |
+      Equipamento: tanque pulmão TQ-12, sensor de nível por radar.
+      Sintoma: leitura congelada em 78 por cento independentemente do nível
+      real, levando o operador a transbordar o tanque durante o enchimento.
+      Não houve perda de produto porque a contenção reteve o volume.
+      Causa: acúmulo de espuma e resíduo na antena do sensor, agravado pela
+      ausência de limpeza no plano de manutenção.
+      Ação: limpeza da antena, reconfiguração da curva de eco e inclusão da
+      tarefa no plano preventivo mensal. Sugerido intertravamento por segundo
+      sensor independente, ainda não aprovado.
+
+  # ---------------------------------------------------------------- compras e fiscal
+  - id: nf_128443
+    title: "Nota fiscal 128.443 — rolamentos e vedações"
+    kind: record
+    body: |
+      Emitente: Rolmec Componentes Industriais Ltda, CNPJ 41.552.907/0001-33.
+      Nota fiscal eletrônica número 128.443, série 1, emitida em 06/03.
+      Itens: 4 rolamentos autocompensadores código CMP-8830-B, 2 conjuntos de
+      vedação para compressor de amônia, 1 jogo de juntas de trocador a placas.
+      Valor total da nota: 18.740,00 reais. Condição: 28 dias.
+      Transportadora: Vetor Cargas, conhecimento 55-9021.
+      Recebido no almoxarifado central em 09/03, conferido sem divergência de
+      quantidade. Vinculada ao pedido de compra 77-4402.
+
+  - id: nf_128512
+    title: "Nota fiscal 128.512 — divergência de item recebido"
+    kind: record
+    body: |
+      Emitente: Sul Vedações e Elastômeros S.A., CNPJ 08.331.204/0001-70.
+      Nota fiscal 128.512, emitida em 19/03.
+      Item faturado: 30 juntas de nitrila, diâmetro 120 milímetros.
+      Item efetivamente recebido: 30 juntas de silicone, mesmo diâmetro.
+      A troca de material foi identificada na conferência de entrada, antes da
+      liberação para uso. Silicone não é compatível com a temperatura de
+      trabalho do equipamento de destino.
+      Providência: recusa parcial da mercadoria, devolução por nota de retorno
+      e abertura de reclamação formal ao fornecedor. Prazo de reposição
+      acordado: 10 dias úteis.
+
+  - id: pc_774410
+    title: "Pedido de compra 77-4410 — par de engrenagens do redutor"
+    kind: record
+    body: |
+      Pedido de compra 77-4410, aberto em 30/03 em caráter de urgência.
+      Fornecedor: Engrepar Transmissões, CNPJ 22.104.883/0001-19.
+      Item: par de engrenagens para redutor de misturador, relação 1:24,
+      conforme desenho técnico DT-2207 anexo.
+      Valor: 31.900,00 reais. Prazo de entrega prometido: 15 dias corridos.
+      Justificativa da urgência: equipamento parado, sem redundância na linha e
+      com impacto direto na produção do turno.
+      Aprovação da gerência industrial registrada na mesma data.
+
+  - id: pc_774402
+    title: "Pedido de compra 77-4402 — estoque mínimo de rolamentos"
+    kind: record
+    body: |
+      Pedido de compra 77-4402, reposição de estoque mínimo do almoxarifado.
+      Fornecedor: Rolmec Componentes Industriais Ltda.
+      Itens: rolamentos autocompensadores, vedações de compressor e juntas de
+      trocador a placas, conforme lista de itens críticos revisada.
+      O ponto de ressuprimento foi elevado depois que a última parada de
+      compressor esperou seis dias por peça em trânsito.
+      Política definida: manter duas unidades em estoque de cada item cuja
+      falta pare uma linha inteira.
+
+  - id: ct_9911
+    title: "Contrato 99-11 — manutenção preditiva por análise de vibração"
+    kind: record
+    body: |
+      Contrato número 99-11 firmado com Preditiva Sul Engenharia, CNPJ
+      13.775.660/0001-05, vigência de 12 meses a partir de 01/02.
+      Escopo: coleta mensal de vibração em 48 pontos de medição, análise
+      espectral, laudo com classificação de severidade e reunião técnica
+      trimestral.
+      Não estão incluídos: correção das falhas apontadas, fornecimento de peça
+      e atendimento emergencial fora do horário comercial.
+      Valor mensal: 7.450,00 reais. Reajuste anual pelo IPCA.
+      Penalidade por atraso na entrega do laudo: 2 por cento do valor mensal.
+
+  # ---------------------------------------------------------------- fichas técnicas
+  - id: ft_p101
+    title: "Ficha técnica — compressor de amônia P-101"
+    kind: record
+    body: |
+      TAG P-101. Compressor de parafuso para amônia, sala de máquinas 2.
+      Fabricante: Frigotec. Modelo FT-450. Ano de fabricação 2016.
+      Capacidade frigorífica nominal: 450 kW a menos 10 graus de evaporação.
+      Motor de 132 kW, 380 volts, 4 polos.
+      Temperatura máxima de descarga admitida: 105 graus. O desarme por
+      temperatura atua em 110 graus.
+      Óleo recomendado: mineral ISO VG 68, troca a cada 8.000 horas ou análise.
+      Peças de desgaste principais: rolamento do eixo CMP-8830-B, filtro de
+      óleo FO-221 e conjunto de vedação do selo mecânico.
+
+  - id: ft_e204
+    title: "Ficha técnica — envasadora rotativa E-204"
+    kind: record
+    body: |
+      TAG E-204. Envasadora rotativa de 24 bicos, linha 3.
+      Fabricante: Kron Packaging. Capacidade nominal: 18.000 garrafas por hora
+      para embalagem de 600 mililitros.
+      Pressão de trabalho do circuito hidráulico: 6 bar. Pressão de teste: 9 bar.
+      Consumo de ar comprimido: 320 normais litros por minuto.
+      Requisitos de utilidade: água a 3 bar para o CIP e energia trifásica
+      dedicada. Ruído medido a um metro: 82 decibéis.
+      Manutenção preventiva recomendada a cada 500 horas de operação.
+
+  - id: ft_cb02
+    title: "Ficha técnica — caldeira flamotubular CB-02"
+    kind: record
+    body: |
+      TAG CB-02. Caldeira flamotubular de três passes, combustível gás natural.
+      Produção de vapor: 6 toneladas por hora a 10 bar.
+      Pressão máxima de trabalho admissível: 12 bar. Válvula de segurança
+      calibrada em 11,5 bar, com lacre e teste anual obrigatório.
+      Categoria conforme norma regulamentadora de caldeiras: categoria A,
+      exigindo operador certificado em tempo integral e inspeção periódica por
+      profissional habilitado.
+      Tratamento de água: abrandamento seguido de dosagem de sequestrante de
+      oxigênio. Descarga de fundo a cada turno.
+
+  - id: ft_tc03
+    title: "Ficha técnica — trocador de calor a placas TC-03"
+    kind: record
+    body: |
+      TAG TC-03. Trocador de calor a placas do pasteurizador.
+      Área de troca: 42 metros quadrados, distribuída em três estágios —
+      recuperação, aquecimento e resfriamento.
+      Material das placas: aço inoxidável AISI 316. Juntas de EPDM coladas.
+      Eficiência de recuperação de projeto: 92 por cento.
+      Perda de carga admissível: 0,8 bar por estágio. Acima disso, indica
+      incrustação e exige limpeza química.
+      Torque de aperto do pacote: cota fechada de 610 milímetros, medida entre
+      as placas de aperto. Apertar além disso deforma a junta.
+
+  - id: ft_tr17
+    title: "Ficha técnica — esteira transportadora TR-17"
+    kind: record
+    body: |
+      TAG TR-17. Esteira de correia modular na saída do túnel de resfriamento.
+      Comprimento total 22 metros, com um trecho curvo de 90 graus.
+      Velocidade ajustável de 6 a 30 metros por minuto, acionada por motoredutor
+      de 1,5 kW com inversor.
+      Rolete tensor R-9 é o item de desgaste mais frequente do conjunto, com
+      vida média observada de 14 meses.
+      Alinhamento das guias laterais deve ser conferido com gabarito próprio a
+      cada troca de formato de embalagem.
+
+  # ---------------------------------------------------------------- chamados
+  - id: ch_5501
+    title: "Chamado 5501 — operador relata cheiro forte na sala de máquinas"
+    kind: record
+    body: |
+      Aberto pelo operador do turno da tarde: cheiro irritante e persistente na
+      sala de máquinas 2, sem alarme correspondente no supervisório.
+      Ação imediata: evacuação preventiva da área e medição com detector
+      portátil, que acusou concentração acima do limite de alerta perto do
+      selo do compressor.
+      O sistema fixo de detecção não disparou. Verificou-se que o sensor da
+      área estava com o certificado de calibração vencido desde o ano anterior.
+      Encaminhamentos: reparo do selo, recalibração de todos os detectores fixos
+      e revisão do plano de calibração, que não estava sendo cobrado por
+      ninguém.
+
+  - id: ch_5502
+    title: "Chamado 5502 — supervisório perdeu comunicação com a linha 3"
+    kind: record
+    body: |
+      Sintoma: telas do supervisório congeladas para toda a linha 3, com os
+      equipamentos operando normalmente em modo local.
+      Duração da indisponibilidade: 3 horas e 20 minutos.
+      Causa: switch industrial do painel de campo reiniciando em ciclo por
+      superaquecimento — o ventilador do armário estava obstruído por poeira.
+      Ação: limpeza, substituição do filtro do armário e inclusão da limpeza no
+      plano preventivo semestral.
+      Observação registrada: durante a indisponibilidade não houve registro de
+      processo, e os dados daquele intervalo foram perdidos.
+
+  - id: ch_5503
+    title: "Chamado 5503 — reclamação de qualidade sobre lote com peso baixo"
+    kind: record
+    body: |
+      Reclamação recebida do centro de distribuição sobre o lote L-0339, com
+      unidades abaixo do peso declarado na embalagem.
+      Investigação: o desvio coincide com o período em que a balança de
+      controle da linha 2 operava com erro sistemático, apurado em ordem de
+      serviço posterior.
+      Volume afetado: 1.200 caixas, das quais 840 ainda estavam retidas no
+      centro de distribuição.
+      Decisão: bloqueio do saldo retido, recolhimento voluntário do que já havia
+      sido expedido e comunicação ao órgão de defesa do consumidor.
+
+  - id: ch_5504
+    title: "Chamado 5504 — falta de vapor no início do turno"
+    kind: record
+    body: |
+      Sintoma: pressão de vapor insuficiente para partida do pasteurizador às
+      06h00, atrasando o início da produção em 90 minutos.
+      Causa: caldeira operando com um único queimador ativo após bloqueio do
+      segundo por falha de ignição, sem que ninguém tivesse sido avisado no
+      turno anterior.
+      Ação: liberação do queimador bloqueado, limpeza do eletrodo de ignição e
+      criação de rotina de passagem de turno com registro obrigatório de
+      equipamento bloqueado.
+
+  - id: ch_5505
+    title: "Chamado 5505 — água de resfriamento acima da temperatura"
+    kind: record
+    body: |
+      Sintoma: temperatura da água de resfriamento 7 graus acima do normal na
+      entrada do processo, durante a semana mais quente do verão.
+      Causa: torre de resfriamento com bicos aspersores parcialmente entupidos e
+      enchimento com incrustação, reduzindo a área efetiva de troca.
+      Ação: limpeza química da torre, substituição de 18 bicos e ajuste da
+      purga automática por condutividade.
+      Nota do relatório: o dimensionamento original considerou temperatura de
+      bulbo úmido inferior à observada nos últimos verões.
+
+  - id: ch_5506
+    title: "Chamado 5506 — acesso indevido ao histórico de processo"
+    kind: record
+    body: |
+      Registro de auditoria apontou alteração manual de valores no histórico de
+      temperatura do pasteurizador, feita com credencial compartilhada de
+      supervisão.
+      Não foi possível atribuir a ação a uma pessoa específica, justamente
+      porque a credencial era compartilhada entre quatro operadores.
+      Impacto: o histórico do período perde valor probatório para fins de
+      auditoria sanitária.
+      Ação: revogação da credencial compartilhada, criação de contas
+      individuais, ativação de trilha de auditoria imutável e treinamento sobre
+      registro de processo.
+
+  # ---------------------------------------------------------------- procedimentos e prosa técnica
+  - id: proc_lockout
+    title: "Procedimento — bloqueio e etiquetagem antes de intervenção mecânica"
+    kind: prose
+    body: |
+      Nenhuma intervenção mecânica começa antes que a fonte de energia esteja
+      isolada, bloqueada fisicamente e identificada com etiqueta contendo o nome
+      de quem bloqueou e a data.
+      A energia a isolar não é apenas a elétrica: ar comprimido, vapor, fluido
+      hidráulico e energia potencial de peças suspensas precisam do mesmo
+      tratamento. Componente que possa se mover por gravidade recebe calço
+      mecânico, não confiança no freio.
+      Cada pessoa que entra na tarefa coloca o próprio cadeado. Quem colocou é a
+      única pessoa autorizada a retirar. Não existe cadeado coletivo, nem chave
+      reserva guardada com o encarregado.
+      Antes de reenergizar, confere-se que todas as ferramentas saíram, que as
+      proteções voltaram e que ninguém permanece na zona de risco.
+
+  - id: proc_cip
+    title: "Procedimento — limpeza CIP de circuito de produto"
+    kind: prose
+    body: |
+      A limpeza no lugar dispensa desmontar o circuito, e por isso depende
+      inteiramente de três variáveis controladas: concentração do agente,
+      temperatura e tempo de circulação. Falha em qualquer uma delas produz uma
+      limpeza que parece ter acontecido.
+      A sequência padrão é enxágue inicial com água, circulação alcalina,
+      enxágue intermediário, circulação ácida quando houver depósito mineral, e
+      enxágue final com água de qualidade compatível com o produto.
+      A concentração é conferida por titulação, não pela leitura do dosador: o
+      dosador informa o que foi enviado, e não o que efetivamente circulou.
+      Velocidade de circulação abaixo de 1,5 metro por segundo não gera o regime
+      turbulento necessário para arrastar a sujeira das paredes.
+
+  - id: proc_vibration
+    title: "Procedimento — interpretação de laudo de vibração"
+    kind: prose
+    body: |
+      O valor global de vibração diz que algo mudou, não o que mudou. Quem
+      responde a segunda pergunta é o espectro, porque cada defeito aparece numa
+      frequência característica ligada à geometria e à rotação.
+      Desbalanceamento concentra energia na rotação do eixo. Desalinhamento
+      aparece no dobro dela e costuma vir com componente axial relevante.
+      Defeito de rolamento nasce em frequências altas, pouco energéticas no
+      começo, e só depois contamina a leitura global — o que dá a janela para
+      programar a troca em vez de sofrer a quebra.
+      Folga mecânica produz muitos harmônicos da rotação. Engrenagem com dente
+      danificado gera bandas laterais em torno da frequência de engrenamento.
+      Uma leitura isolada vale pouco: o que decide é a tendência ao longo do
+      tempo, comparada com o próprio equipamento.
+
+  - id: proc_criticality
+    title: "Procedimento — classificação de criticidade de equipamento"
+    kind: prose
+    body: |
+      Criticidade não é tamanho nem preço. É o quanto a falha daquele
+      equipamento custa ao processo — e por isso equipamento pequeno e barato
+      pode ser mais crítico que um caro.
+      Os eixos avaliados são: efeito sobre segurança das pessoas, efeito sobre o
+      atendimento ao cliente, existência de redundância, tempo médio para
+      reposição da peça e histórico de falhas.
+      Equipamento sem redundância e com peça de longo prazo de entrega sobe de
+      classe mesmo com histórico limpo, porque a exposição é ao tempo de
+      reposição, não à frequência da falha.
+      A classificação define a política: o que é crítico vai para preditiva com
+      monitoramento contínuo e estoque de peça garantido; o resto vai para
+      preventiva por tempo, e o não crítico pode ir para corretiva planejada.
+
+  - id: proc_rootcause
+    title: "Procedimento — investigação de causa raiz depois de uma parada"
+    kind: prose
+    body: |
+      A pergunta que encerra a investigação não é "o que quebrou", e sim "o que
+      permitiu que isso quebrasse sem que ninguém percebesse antes".
+      Peça que falha por desgaste esperado indica plano de manutenção mal
+      dimensionado, não azar. Peça que falha cedo indica montagem, seleção ou
+      condição de operação fora do previsto.
+      A investigação começa preservando a evidência: a peça danificada, a
+      amostra de óleo, o registro do supervisório e o relato de quem estava lá.
+      Reaproveitar a peça antes da análise apaga a única prova disponível.
+      A conclusão só é aceita quando produz uma ação que muda alguma coisa —
+      plano, projeto, procedimento ou treinamento. "Reforçar a atenção da
+      equipe" não é ação corretiva.
+
+  - id: proc_spare
+    title: "Procedimento — política de estoque de peça sobressalente"
+    kind: prose
+    body: |
+      Estoque de sobressalente é seguro, e como todo seguro tem um custo que se
+      paga sem que nada aconteça. A decisão é comparar esse custo com o prejuízo
+      da linha parada esperando a peça chegar.
+      O critério de ressuprimento combina prazo de entrega, consumo histórico e
+      consequência da falta. Item de entrega longa e falta catastrófica fica em
+      estoque mesmo com consumo baixíssimo.
+      Peça com prazo curto e fornecedor local não precisa ocupar prateleira.
+      A revisão do ponto de ressuprimento acontece depois de todo evento em que
+      a espera pela peça foi o gargalo da parada — e essa revisão precisa ser
+      cobrada por alguém, ou não acontece.
+
+  - id: proc_shift
+    title: "Procedimento — passagem de turno na manutenção"
+    kind: prose
+    body: |
+      Passagem de turno é transferência de responsabilidade, não conversa de
+      corredor. O que não estiver registrado por escrito não foi transferido.
+      O registro precisa conter, no mínimo: equipamento parado ou operando em
+      condição degradada, bloqueio ativo e quem colocou, serviço em andamento
+      com o ponto em que parou, peça aguardando chegada e qualquer anormalidade
+      observada mesmo sem falha declarada.
+      Equipamento bloqueado sem registro é a origem mais comum de surpresa no
+      início do turno seguinte, porque o turno que entra descobre a limitação no
+      momento em que precisa da capacidade.
+      A leitura do registro pelo turno que entra é parte do procedimento, não
+      cortesia.
+
+  - id: proc_thermal
+    title: "Procedimento — por que temperatura de descarga é o alarme mais informativo"
+    kind: prose
+    body: |
+      Num compressor, a temperatura de descarga acumula o efeito de quase todo
+      problema mecânico ou de processo — atrito interno crescente, falta de
+      lubrificação, razão de compressão acima do projeto, gás com carga térmica
+      além da prevista, ou trocador sujo do lado da condensação.
+      É por isso que ela vale mais como sintoma do que como causa: a subida
+      lenta ao longo de dias costuma preceder a falha com folga suficiente para
+      programar a intervenção.
+      O erro comum é tratar o desarme como o evento. O desarme é a proteção
+      funcionando; o evento começou quando a curva mudou de inclinação.
+      Acompanhar a tendência exige registro contínuo — sem histórico, só existe
+      o desarme, e aí a única informação disponível é que já é tarde.

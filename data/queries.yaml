@@ -1,0 +1,215 @@
+# Gabarito da avaliação — 37 consultas em 3 famílias.
+#
+# As famílias existem para que a média não esconda o resultado. Uma tabela com
+# uma linha por estratégia diz quem ganhou; a mesma tabela quebrada por família
+# diz POR QUE — e é sempre a mesma história: cada motor domina uma família e
+# afunda na outra.
+#
+#   literal     — o identificador está escrito no documento, letra por letra.
+#                 Casamento exato resolve. O denso tem que adivinhar.
+#   conceptual  — a consulta descreve a situação com OUTRO vocabulário.
+#                 Nenhuma palavra da consulta precisa existir no alvo.
+#   hybrid      — identificador + descrição na mesma frase. É o caso real, e é
+#                 onde nenhum motor sozinho é suficiente.
+#
+# `relevant` lista TODOS os documentos que respondem — não só o principal. Doc
+# que menciona o mesmo identificador de passagem conta, porque devolvê-lo não é
+# erro. Gabarito artificialmente estreito infla a diferença entre estratégias.
+
+queries:
+  # ============================================================ literal
+  - id: q_lit_01
+    family: literal
+    text: "OS-4471"
+    relevant: [os_4471]
+    note: "Número de ordem de serviço. Existe em um documento só."
+
+  - id: q_lit_02
+    family: literal
+    text: "nota fiscal 128.512"
+    relevant: [nf_128512]
+    note: "Número com ponto — testa se a tokenização não parte o identificador."
+
+  - id: q_lit_03
+    family: literal
+    text: "CMP-8830-B"
+    relevant: [os_4471, nf_128443, ft_p101]
+    note: "Código de peça citado em três documentos de naturezas diferentes."
+
+  - id: q_lit_04
+    family: literal
+    text: "CNPJ 41.552.907/0001-33"
+    relevant: [nf_128443]
+    note: "CNPJ com máscara. Identificador que nenhum embedding representa bem."
+
+  - id: q_lit_05
+    family: literal
+    text: "código de erro E-217"
+    relevant: [os_4475]
+    note: "Código de erro de inversor."
+
+  - id: q_lit_06
+    family: literal
+    text: "pedido de compra 77-4410"
+    relevant: [pc_774410, os_4479]
+    note: "O pedido e a OS que o originou."
+
+  - id: q_lit_07
+    family: literal
+    text: "certificado 33-2291"
+    relevant: [os_4476]
+    note: "Número de certificado de calibração."
+
+  - id: q_lit_08
+    family: literal
+    text: "desenho técnico DT-2207"
+    relevant: [pc_774410]
+
+  - id: q_lit_09
+    family: literal
+    text: "lote L-0339"
+    relevant: [ch_5503]
+
+  - id: q_lit_10
+    family: literal
+    text: "contrato 99-11"
+    relevant: [ct_9911]
+
+  - id: q_lit_11
+    family: literal
+    text: "filtro de óleo FO-221"
+    relevant: [ft_p101]
+
+  # ============================================================ conceptual
+  - id: q_con_01
+    family: conceptual
+    text: "a máquina do frio esquentou sozinha de madrugada e desligou"
+    relevant: [os_4471, proc_thermal]
+    note: "Nenhuma dessas palavras é o vocabulário do relatório."
+
+  - id: q_con_02
+    family: conceptual
+    text: "quem tem direito de retirar o cadeado que outra pessoa colocou"
+    relevant: [proc_lockout]
+
+  - id: q_con_03
+    family: conceptual
+    text: "como perceber que um mancal vai falhar antes de ele quebrar"
+    relevant: [proc_vibration]
+    note: "'mancal' não aparece no documento, que diz 'rolamento'."
+
+  - id: q_con_04
+    family: conceptual
+    text: "por que um item barato pode ser mais importante que um caro"
+    relevant: [proc_criticality]
+
+  - id: q_con_05
+    family: conceptual
+    text: "vale a pena guardar peça que quase nunca é usada"
+    relevant: [proc_spare]
+
+  - id: q_con_06
+    family: conceptual
+    text: "o que precisa ficar registrado quando uma equipe entrega para a outra"
+    relevant: [proc_shift]
+
+  - id: q_con_07
+    family: conceptual
+    text: "lavagem que parece ter acontecido mas não limpou de verdade"
+    relevant: [proc_cip]
+
+  - id: q_con_08
+    family: conceptual
+    text: "investigação que termina sem mudar nada na prática"
+    relevant: [proc_rootcause]
+
+  - id: q_con_09
+    family: conceptual
+    text: "chegou material diferente do que tinha sido comprado"
+    relevant: [nf_128512]
+
+  - id: q_con_10
+    family: conceptual
+    text: "produto saiu com menos conteúdo do que diz o rótulo"
+    relevant: [ch_5503, os_4476]
+
+  - id: q_con_11
+    family: conceptual
+    text: "ninguém consegue saber quem mexeu porque a senha era de todo mundo"
+    relevant: [ch_5506]
+
+  - id: q_con_12
+    family: conceptual
+    text: "as telas do controle pararam mas os equipamentos continuaram rodando"
+    relevant: [ch_5502]
+
+  - id: q_con_13
+    family: conceptual
+    text: "cheiro forte no ambiente e o sistema de detecção não avisou"
+    relevant: [ch_5501]
+
+  - id: q_con_14
+    family: conceptual
+    text: "entrou água no armário de eletricidade depois do temporal"
+    relevant: [os_4478]
+
+  - id: q_con_15
+    family: conceptual
+    text: "operador transbordou o tanque porque o indicador mostrava valor errado"
+    relevant: [os_4480]
+
+  # ============================================================ hybrid
+  - id: q_hyb_01
+    family: hybrid
+    text: "P-101 aquecendo acima do normal"
+    relevant: [os_4471, ft_p101, proc_thermal]
+
+  - id: q_hyb_02
+    family: hybrid
+    text: "E-217 aparecendo na partida do agitador"
+    relevant: [os_4475]
+
+  - id: q_hyb_03
+    family: hybrid
+    text: "TR-17 derrubando embalagem no trecho curvo"
+    relevant: [os_4474, ft_tr17]
+
+  - id: q_hyb_04
+    family: hybrid
+    text: "CB-02 sem pressão suficiente no começo do turno"
+    relevant: [ch_5504, ft_cb02]
+
+  - id: q_hyb_05
+    family: hybrid
+    text: "TC-03 perdendo eficiência de troca térmica"
+    relevant: [os_4477, ft_tc03]
+
+  - id: q_hyb_06
+    family: hybrid
+    text: "BL-11 indicando peso divergente da conferência"
+    relevant: [os_4476, ch_5503]
+
+  - id: q_hyb_07
+    family: hybrid
+    text: "TQ-12 com leitura de nível parada"
+    relevant: [os_4480]
+
+  - id: q_hyb_08
+    family: hybrid
+    text: "E-204 com vazamento na linha 3"
+    relevant: [os_4472, ft_e204]
+
+  - id: q_hyb_09
+    family: hybrid
+    text: "QD-08 oxidado depois da chuva"
+    relevant: [os_4478]
+
+  - id: q_hyb_10
+    family: hybrid
+    text: "MX-06 com ruído no redutor"
+    relevant: [os_4479]
+
+  - id: q_hyb_11
+    family: hybrid
+    text: "AG-05 desarmando de vez em quando na partida"
+    relevant: [os_4475]
