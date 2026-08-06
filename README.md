@@ -477,6 +477,37 @@ A última linha é o caso a guardar. O RRF já tinha entregue o documento certo 
 Wikipédia mais convincente, e o relevante saiu do top-10. **Reranking não é um
 passo de segurança: é uma aposta com saldo positivo e variância real.**
 
+### Reproduzindo à mão
+
+As tabelas acima saem de `results/hits.json`, e dá para regenerá-las:
+
+```bash
+task failures   # discordâncias com id e texto da consulta
+```
+
+Ele imprime quatro blocos — léxico falhou × denso resolveu (5 casos), denso
+falhou × léxico resolveu (2), a fusão piorou o que um motor puro já tinha em 1º
+(6), e o reranker rebaixou o que a fusão entregou (2).
+
+E para ver uma delas acontecer, estratégia por estratégia:
+
+```bash
+task query -- "ninguém consegue saber quem mexeu porque a senha era de todo mundo"
+```
+
+O top-5 real dessa consulta, medido nesta máquina — o alvo é `ch_5506`:
+
+| Estratégia | 1º | 2º | 3º | 4º | 5º |
+|---|---|---|---|---|---|
+| `dense` | **ch_5506** | proc_lockout | ch_5501 | proc_shift | wiki_019 |
+| `bm25` | wiki_057 | ch_5501 | proc_lockout | wiki_029 | wiki_027 |
+| `rrf` | ch_5501 | proc_lockout | **ch_5506** | wiki_051 | proc_shift |
+| `rrf_rerank` | wiki_051 | wiki_019 | wiki_034 | wiki_044 | wiki_029 |
+
+A leitura em uma frase: o denso acerta em 1º, o BM25 nem traz o alvo, o RRF
+dilui o acerto do denso para 3º, e o cross-encoder entrega **cinco distratores
+da Wikipédia** no topo. Uma consulta, os quatro modos de falha da PoC.
+
 ---
 
 ## Como escolher
@@ -641,8 +672,8 @@ tools/check_readme.py          canário da documentação (fora do pacote: não 
                                parte da PoC, é quem audita o texto sobre ela)
 ```
 
-**2 069 linhas de Python**, 10 scripts numerados em `scripts/` (`00-setup` a
-`09-check-readme`), e um `Taskfile.yaml`
+**2 069 linhas de Python**, 11 scripts numerados em `scripts/` (`00-setup` a
+`10-failures`), e um `Taskfile.yaml`
 que chama script — nunca comando ad-hoc.
 
 Por que os dois contratos são distintos:

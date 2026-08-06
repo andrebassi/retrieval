@@ -63,6 +63,11 @@ tasks:
     cmds:
       - bash scripts/08-report.sh 2>&1 | tee {{.LOG}}-report.log
 
+  failures:
+    desc: "Onde as estratégias discordam, com id e texto da consulta"
+    cmds:
+      - bash scripts/10-failures.sh 2>&1 | tee {{.LOG}}-failures.log
+
   check:readme:
     desc: "Canário da documentação: número do README × número medido"
     cmds:
