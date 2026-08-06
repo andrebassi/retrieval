@@ -148,6 +148,13 @@ pre,
   letter-spacing: 0.04em;
 }
 
+.poc-family-hint {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .poc-chips {
   display: flex;
   flex-wrap: wrap;
@@ -475,12 +482,24 @@ pre,
   font-size: 0.85rem;
 }
 
+/* Uma forma de buscar por linha. Com `flex-wrap` o nome longo em pt-BR quebrava
+   três de um lado e uma embaixo, e cada cartão quebrava num ponto diferente —
+   a coluna de posição deixava de ser comparável de bater o olho, que é a única
+   coisa que este bloco existe para permitir. */
 .poc-ranks {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 3px;
   font-size: 0.75rem;
   color: var(--muted);
+}
+
+/* `flex` e não `display: contents`: o span precisa continuar existindo como
+   caixa para o `title` (o identificador técnico) aparecer no hover. */
+.poc-ranks > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 /* ---------- popup de código ---------- */
@@ -547,6 +566,80 @@ pre,
   border-left: 3px solid var(--accent);
   padding-left: 10px;
   margin-top: 16px;
+}
+
+.poc-legend p {
+  margin: 0 0 8px;
+}
+.poc-legend p:last-child {
+  margin-bottom: 0;
+}
+
+/* Abertura de aba: maior que `.poc-note` e na cor do texto, não na do
+   secundário. É a primeira coisa que alguém lê ao trocar de aba — deixá-la
+   cinza-claro junto com as notas de rodapé fez o teste de tela virar "não
+   entendi o que estou vendo". */
+.poc-intro {
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0 0 16px;
+  max-width: 78ch;
+}
+
+.poc-lede {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 6px 0 8px;
+  max-width: 76ch;
+}
+
+/* Explicação da opção, dobrada dentro do cartão. Fechada por padrão: seis
+   cartões abertos empurrariam o resultado — que é o que a pessoa veio ver —
+   para baixo da dobra. */
+.poc-plain {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  background: var(--surface-2, transparent);
+}
+
+.poc-plain > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+  list-style-position: inside;
+}
+
+.poc-plain p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.poc-plain-good strong {
+  color: var(--good);
+}
+.poc-plain-bad strong {
+  color: var(--bad);
+}
+
+/* O nome técnico da coluna, embaixo do nome em português. Não é redundância: é
+   o que permite conferir a tela contra o relatório sem ter de adivinhar qual
+   coluna virou qual. */
+.poc-th-tech {
+  font-weight: 400;
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-family: var(--mono, ui-monospace, monospace);
+}
+
+.poc-footer-tag {
+  font-weight: 600;
+  color: var(--text);
 }
 
 .poc-danger {

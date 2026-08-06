@@ -661,29 +661,37 @@ marcado em cada resultado.
 task web:build    # compila o front para dentro do pacote Python
 task web          # http://127.0.0.1:8081 (compila sozinho se faltar o bundle)
 task web:check    # CANÁRIO do front — todas as rotas e o bundle, sem browser
-task web:shots    # um print de cada aba (exige 'task web' de pé)
+task web:shots    # cinco prints (exige 'task web' de pé)
 ```
 
 Quatro abas, cada uma respondendo a uma pergunta diferente:
 
 | Aba | Responde |
 |---|---|
-| **Buscar** | as 6 estratégias sobre a mesma consulta, com acerto, latência e a marca de **faminta** quando devolveu menos que `k` |
-| **O que ficou guardado** | o que existe no banco para um documento: lexemas com `tf`/`df`/IDF, as 24 primeiras dimensões do vetor e o texto indexado |
-| **Placar medido** | a mesma tabela do `results/evaluation.json`, servida byte a byte — não recalculada |
-| **Onde discordam** | os 15 casos em que as estratégias divergem, com id, texto da consulta e o rank que cada uma deu |
+| **Fazer uma pergunta** | as 6 estratégias sobre a mesma consulta, com acerto, latência e a marca de **voltou incompleta** quando devolveu menos que `k` |
+| **Como isso fica guardado** | o que existe no banco para um documento: lexemas com `tf`/`df`/IDF, as 24 primeiras dimensões do vetor e o texto indexado |
+| **Quem acerta mais** | a mesma tabela do `results/evaluation.json`, servida byte a byte — não recalculada |
+| **Onde elas discordam** | os 15 casos em que as estratégias divergem, com id, texto da consulta e o rank que cada uma deu |
 
 Cada aba tem **URL própria** (`?tab=score`, `?tab=document&doc=ch_5506`). Não é
 enfeite: sem isso não existe link para uma aba, e nenhuma ferramenta que fotografa
 a tela chega às outras três — foi o que dispensou um script de CDP com websocket
 só para clicar em botão.
 
+**A tela fala com quem não é da área.** O nome de cada estratégia aparece em
+português (`dense` → "Busca por significado"), e cada cartão dobra uma explicação
+de três partes — como funciona, onde acerta, onde erra — que sai do back-end, em
+`STRATEGY_PLAIN`, para haver uma fonte só. O identificador técnico não some: fica
+no rodapé do cartão e no `title` de cada número. `?explain=1` abre os seis blocos
+de uma vez — serve para mandar o link já explicado, e é o que faz o texto dobrado
+entrar num print (texto que ninguém confere é texto que envelhece errado).
+
 Decisões que valem registro:
 
 - **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
   `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
   precisa de Node — precisa do bundle, que já está no lugar. Medido: `index.html`
-  554 B, CSS 131,69 kB (21,54 kB gzip), JS 234,37 kB (72,31 kB gzip).
+  554 B, CSS 132,67 kB (21,76 kB gzip), JS 240,59 kB (74,39 kB gzip).
 - **A barra de pontuação normaliza dentro da coluna, nunca entre estratégias.**
   BM25 vai de 1,5 a 28; cosseno de 0,29 a 0,78; RRF são frações de 1/61. Uma
   escala comum faria a barra do RRF sumir e dar a impressão de que a fusão
@@ -699,7 +707,7 @@ Decisões que valem registro:
 ### O terceiro canário: a tela também mente ✅ medido
 
 Tela é a parte que ninguém testa — abre bonita e mente calada. `task web:check`
-faz **95 asserções** em 8 seções contra o servidor no ar, sem browser, e não
+faz **99 asserções** em 8 seções contra o servidor no ar, sem browser, e não
 aborta na primeira falha (uma rodada mostra tudo que está quebrado). Ele pega
 três coisas que passam por qualquer olhada:
 
@@ -727,6 +735,15 @@ e `kind` é a **forma** (registro × prosa). Os 8 procedimentos são `handwritte
 apareceu **olhando o print**. Hoje há duas asserções que impedem a recaída — as
 duas somas têm que fechar separadamente, e os dois eixos não podem colapsar no
 mesmo número.
+
+E ele deixou passar coisa pior: uma prop indefinida (`explain`, passada ao
+componente errado) derrubou o render da **aba inteira**. O canário seguiu com
+`erros: 0` — o servidor estava íntegro, quem quebrou foi o JS depois do 200 —, e
+o defeito só apareceu porque o print da aba de busca saiu **em branco**. O sinal
+barato disso é o tamanho do arquivo: os PNG desta tela nunca descem de 200 kB, e
+o branco deu 10 979 B. Por isso `task web:shots` hoje falha (`rc=1`) quando um
+print fica abaixo de 60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000`
+ele acusa três dos cinco e sai != 0 — canário que nunca apita não está medindo.
 
 ---
 
@@ -766,7 +783,7 @@ tools/check_readme.py          canário da documentação (fora do pacote: não 
 tools/web_check.py             parte da PoC, é quem audita a PoC — texto e tela)
 ```
 
-**2 667 linhas de Python**, 15 scripts numerados em `scripts/` (`00-setup` a
+**2 731 linhas de Python**, 15 scripts numerados em `scripts/` (`00-setup` a
 `14-web-shots`), e um `Taskfile.yaml`
 que chama script — nunca comando ad-hoc.
 

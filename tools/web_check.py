@@ -107,6 +107,27 @@ if state:
     )
     require(len(state["strategies"]) == 6, f"{len(state['strategies'])} estratégias expostas")
     require(all(s["label"] for s in state["strategies"]), "toda estratégia tem nome em pt-BR")
+    # A explicação de tela é contrato, não enfeite: sem ela o cartão mostra um
+    # número e nenhuma pista de por que aquele número é assim. Cobrar os três
+    # campos separadamente porque o modo de falha real é acrescentar estratégia
+    # nova e esquecer de descrever onde ela erra — que é justamente a parte que
+    # ninguém escreve espontaneamente.
+    for field in ("how", "good", "bad"):
+        missing = [
+            s["name"]
+            for s in state["strategies"]
+            if not (s.get("plain") or {}).get(field, "").strip()
+        ]
+        require(not missing, f"toda estratégia explica '{field}'" + (f" — falta em {missing}" if missing else ""))
+    # A tela imprime esse texto como texto, sem passar por Markdown. `**x**`
+    # escrito aqui aparece com os asteriscos na cara do usuário — aconteceu em
+    # `rrf` e `rrf_rerank`, e só o print mostrou.
+    marked = [
+        s["name"]
+        for s in state["strategies"]
+        if "**" in " ".join((s.get("plain") or {}).values())
+    ]
+    require(not marked, "explicações sem Markdown cru" + (f" — {marked}" if marked else ""))
     require(len(state["queries"]) > 0, f"{len(state['queries'])} consultas com gabarito")
     require(
         {q["family"] for q in state["queries"]} == {"literal", "conceptual", "hybrid"},

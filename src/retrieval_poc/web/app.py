@@ -39,18 +39,74 @@ STATIC_DIR = Path(__file__).parent / "static"
 # Nome de tela em pt-BR na frente; o identificador técnico vai no rodapé do
 # cartão. Quem não é da área não lê `ts_rank_cd` como "a busca do Postgres".
 STRATEGY_LABEL = {
-    "dense": "Semântica — texto vira vetor",
-    "ts_rank": "Postgres puro — ts_rank_cd",
-    "bm25": "BM25 — o clássico do índice invertido",
-    "weighted": "Fusão por score normalizado",
-    "rrf": "Fusão por posição (RRF)",
-    "rrf_rerank": "RRF relido por cross-encoder",
+    "dense": "Busca por significado",
+    "ts_rank": "Busca por palavra, simples",
+    "bm25": "Busca por palavra, com peso",
+    "weighted": "As duas juntas, somando notas",
+    "rrf": "As duas juntas, somando posições",
+    "rrf_rerank": "As duas juntas + um revisor",
+}
+
+# Cada opção em uma frase, mais o que ela faz bem e o que ela faz mal. É o que
+# a tabela de médias não conta: as seis "erram 20%", só que em perguntas
+# diferentes — e escolher motor é escolher **qual erro** você aceita.
+STRATEGY_PLAIN = {
+    "dense": {
+        "how": "Transforma a pergunta e cada documento em uma lista de números "
+        "que representa o assunto. Depois procura os documentos cujos números "
+        "ficam mais perto dos da pergunta.",
+        "good": "Entende quando você descreve o problema com outras palavras: "
+        "acha “vazamento de óleo” num texto que só diz “perda de lubrificante”.",
+        "bad": "Confunde códigos parecidos. Para ele, dois números de nota "
+        "fiscal quase iguais querem dizer quase a mesma coisa — e não querem.",
+    },
+    "ts_rank": {
+        "how": "Procura as palavras da pergunta dentro do texto e ordena por "
+        "quantas vezes elas aparecem e por onde aparecem.",
+        "good": "É a busca que todo banco de dados já tem, custa quase nada e "
+        "acha o código exato quando ele está escrito lá.",
+        "bad": "Trata toda palavra como se valesse o mesmo. “bomba” e “de” "
+        "pesam igual, e aí o documento certo perde para um que só repete “de”.",
+    },
+    "bm25": {
+        "how": "Mesma busca por palavra, com uma diferença: palavra rara vale "
+        "mais que palavra comum, e texto longo não leva vantagem por ser longo.",
+        "good": "Acha o número de série, a placa, o código do equipamento — "
+        "justamente as palavras que aparecem em poucos documentos.",
+        "bad": "Se você não usar nenhuma palavra que está escrita no documento, "
+        "ele devolve pouca coisa ou nada. Não sabe o que é sinônimo.",
+    },
+    "weighted": {
+        "how": "Roda as duas buscas e soma as notas delas, depois de colocar as "
+        "duas na mesma escala de 0 a 1.",
+        "good": "Aproveita as duas: quem acha por palavra e quem acha por "
+        "assunto entram na mesma lista.",
+        "bad": "As duas notas nascem em escalas diferentes, e forçá-las a "
+        "conviver distorce as duas. É a opção que mais depende de sorte no ajuste.",
+    },
+    "rrf": {
+        "how": "Roda as duas buscas e ignora as notas: só olha em que lugar "
+        "cada documento ficou em cada lista, e soma os lugares.",
+        "good": "Não precisa de ajuste nenhum e não sofre com escala. É a fusão "
+        "que funciona sem ninguém calibrar.",
+        "bad": "Perde a informação de “ganhou por muito” ou “ganhou por pouco”. "
+        "1º lugar folgado e 1º lugar apertado valem a mesma coisa.",
+    },
+    "rrf_rerank": {
+        "how": "Faz a fusão acima, pega os 20 primeiros e passa cada um por um "
+        "modelo que lê a pergunta e o documento na mesma passada, um ao lado do "
+        "outro, para reordenar.",
+        "good": "É quem mais acerta na primeira posição — o revisor percebe "
+        "detalhes que a busca não percebe.",
+        "bad": "Só reordena o que a fusão já trouxe: se o documento certo ficou "
+        "de fora dos 20, ele nunca aparece. E é a opção mais lenta, de longe.",
+    },
 }
 
 FAMILY_LABEL = {
-    "literal": "cita um identificador que está no texto",
-    "conceptual": "descreve o assunto sem usar as palavras do documento",
-    "hybrid": "as duas coisas na mesma frase",
+    "literal": "a pergunta cita um código que está escrito no documento",
+    "conceptual": "a pergunta descreve o problema com outras palavras",
+    "hybrid": "a pergunta traz o código e a descrição na mesma frase",
 }
 
 
@@ -166,7 +222,12 @@ def state() -> dict:
             {
                 "name": name,
                 "label": STRATEGY_LABEL[name],
+                # `description` é a frase técnica que já existia no registry;
+                # `plain` é a explicação de tela. Os dois convivem: o rodapé do
+                # cartão continua mostrando o identificador para quem quer ver o
+                # código, e a frente fala com quem só quer decidir.
                 "description": current.stack.strategies[name].description,
+                "plain": STRATEGY_PLAIN[name],
                 "has_code_tour": name in TOUR,
             }
             for name in STRATEGY_ORDER
@@ -327,25 +388,28 @@ def disagreements() -> dict:
     return {
         "blocks": [
             block(
-                "O léxico falhou e o vetor resolveu",
-                "O argumento a favor do denso: a pergunta não usa as palavras do documento.",
+                "A busca por palavra falhou e a por significado salvou",
+                "É o caso que justifica ter busca por significado: a pergunta não"
+                " usa nenhuma palavra que está escrita no documento.",
                 lambda s: worse(s["bm25"]["rank"]) and s["dense"]["rank"] == 1,
             ),
             block(
-                "O vetor falhou e o léxico resolveu",
-                "O argumento a favor do índice invertido: o identificador é um símbolo,"
-                " e símbolo não tem vizinhança semântica.",
+                "A busca por significado falhou e a por palavra salvou",
+                "É o caso que justifica manter a busca por palavra: um código não"
+                " tem sinônimo, e é por isso que “parecido” não ajuda a achá-lo.",
                 lambda s: worse(s["dense"]["rank"]) and s["bm25"]["rank"] == 1,
             ),
             block(
-                "A fusão piorou o que um motor puro já tinha em 1º",
-                "O preço de fundir: misturar motor ruim com motor bom dá pior que o bom.",
+                "Juntar as duas piorou o que uma sozinha já tinha acertado",
+                "O preço de juntar: quando uma das duas erra feio, a mistura fica"
+                " pior do que a que estava certa.",
                 lambda s: s["rrf"]["rank"] not in (None, 1)
                 and 1 in (s["dense"]["rank"], s["bm25"]["rank"]),
             ),
             block(
-                "O reranker rebaixou o que a fusão já tinha entregue",
-                "Reranking é aposta com saldo positivo e variância real, não passo de segurança.",
+                "O revisor rebaixou o que a mistura já tinha colocado na frente",
+                "O revisor melhora a média, mas erra em casos específicos — é"
+                " aposta com saldo positivo, não garantia.",
                 lambda s: s["rrf"]["rank"] is not None
                 and (
                     s["rrf_rerank"]["rank"] is None

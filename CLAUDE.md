@@ -109,7 +109,7 @@ task query -- "P-101 aquecendo acima do normal"
 task web:build         # compila o front para src/retrieval_poc/web/static
 task web               # tela em http://127.0.0.1:8081 (compila se faltar bundle)
 task web:check         # CANÁRIO do front — 95 asserções, 8 seções, sem browser
-task web:shots         # um print por aba (exige 'task web' de pé)
+task web:shots         # 5 prints (exige 'task web' de pé); falha se algum sair em branco
 task clean             # apaga corpus e resultados, mantém o banco
 ```
 
@@ -139,6 +139,9 @@ task "passa".
 | 16 | `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY` no build do front | pnpm 11 aborta install não-interativo quando precisa recriar `node_modules`, e pede aprovação para script de pós-instalação | `allowBuilds`/`onlyBuiltDependencies` no `pnpm-workspace.yaml` **mais** `CI=true`. O primeiro resolve a aprovação, o segundo resolve o prompt — precisa dos dois |
 | 17 | Print de uma aba exige clicar num botão, e clicar exige CDP com websocket | a aba vivia só em estado do React | cada aba tem URL (`?tab=…&doc=…`, via `history.replaceState`). O `--screenshot` do Chrome basta, e ainda ganha-se link compartilhável. `replaceState` e não `pushState`: senão cada clique enche o histórico |
 | 18 | `results/index_stats.json` "ausente" no canário | o nome foi **inventado** no código do servidor — nenhum script grava esse arquivo | `rtk proxy grep -rn "index_stats"` mostrou que só aparecia no meu código. O tamanho de índice já vem medido do catálogo do Postgres em `/api/state`; um JSON com esse número envelheceria em silêncio |
+| 19 | Aba inteira **em branco** com `task web:check` em `erros: 0` | prop passada ao componente errado (`explain` foi para `SearchTab`, e quem usa é `SearchResults`) — `ReferenceError` em runtime; o build do Vite não faz checagem de escopo e o canário só prova que a rota responde | o tamanho do PNG é o sinal barato: print desta tela nunca desce de 200 kB, o branco deu 10 979 B. `14-web-shots.sh` falha abaixo de `MIN_BYTES=60000`. Para o erro exato: `Chrome --headless --enable-logging=stderr --dump-dom <url>` e filtrar `Uncaught` |
+| 20 | `?explain=1` na URL e os `<details>` continuam fechados | `const initial = readUrl()` rodava **a cada render**, e o `useEffect` de `replaceState` já tinha reescrito a URL sem o parâmetro. Como os cartões só nascem depois da busca, o valor chegava sempre falso | ler a URL uma vez (`useState(readUrl)`) e **preservar** o parâmetro no `replaceState`. Conferência sem browser: `--dump-dom \| grep -o 'poc-plain" open' \| wc -l` tem que dar 6 (`grep -c` dá 1 — o DOM sai numa linha só) |
+| 21 | `**palavra**` aparece com os asteriscos na tela | os textos de `STRATEGY_PLAIN` são impressos como texto puro; nada no front interpreta Markdown | asserção no `web_check.py` proíbe `**` nesses campos. Foi o print que mostrou — o canário anterior só cobrava que o campo não fosse vazio |
 
 ## Como interpretar os resultados
 
