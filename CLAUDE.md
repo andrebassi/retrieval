@@ -109,7 +109,7 @@ task query -- "P-101 aquecendo acima do normal"
 task web:build         # compila o front para src/retrieval_poc/web/static
 task web               # tela em http://127.0.0.1:8081 (compila se faltar bundle)
 task web:check         # CANÁRIO do front — 131 asserções, 9 seções, sem browser
-task web:shots         # 7 prints (exige 'task web' de pé); falha se algum sair em branco
+task web:shots         # 10 prints (exige 'task web' de pé); falha se algum sair em branco
 task clean             # apaga corpus e resultados, mantém o banco
 ```
 
@@ -146,6 +146,9 @@ task "passa".
 | 23 | O texto do desempate dizia "é a única que devolve a lista cheia" e a nota logo abaixo avisava "devolve lista incompleta em 10 perguntas" | frase **fixa**, não derivada do critério que de fato distinguiu | montar o motivo comparando a vencedora com as perdedoras reais, e distinguir "devolve a lista cheia" (starved 0) de "devolve lista curta em menos perguntas". Asserção no `web_check.py`: `why` com "lista cheia" + nota de "lista incompleta" = erro |
 | 24 | A lista de ranking começava por `weighted` na mesma tela que explica por que `rrf` ganhou | o `sort` da lista era por nota; o desempate era outro | a lista sai na **mesma ordem do desempate** (`seat` = posição entre os contenders). Asserção: `ranked[0].name == winner` em todos os 27 cenários |
 | 25 | `task check:readme` acusa `[118,8 ms]` como latência inventada | o p50 que a aba compara é o **da família**, dentro de `by_family`, e o canário só varria o p50 global | o canário passou a varrer `by_family` também. Ele estava certo: 118,8 era erro de digitação meu, o medido é 119,7 |
+| 26 | O deslocamento escrito no CSS some quando o `motion` anima o elemento | `motion` escreve `transform` **inline** para animar `y`/`scale`, e inline vence folha de estilo: o `transform: translateX(-3px)` do CSS é sobrescrito sem aviso | escrever o deslocamento estático na propriedade `translate:`, que é independente de `transform` na cascata. Está em `.poc-*` nas linhas 1206–1240 do `styles.css` |
+| 27 | O passo 4 sai **vazio** num print e cheio no seguinte, com o mesmo bundle (122 917 B contra 315 971 B) | animação de entrada nasce em `opacity: 0` e só sobe no `requestAnimationFrame`; no headless o `--screenshot` às vezes dispara antes | `--force-prefers-reduced-motion` no Chrome: o `useReducedMotion()` devolve true, todo `initial` vira `false` e o desenho nasce pronto. De quebra, o caminho de acessibilidade passa a ser conferido a cada rodada. Layout de pé + conteúdo transparente + canário verde é exatamente a falha que os prints existem para pegar |
+| 28 | A barra "voltar / passo N de 4 / avançar" some da tela no passo mais alto | o conteúdo do passo empurrava a moldura, e a nav ia junto para baixo da dobra | moldura de **altura fixa** (`.poc-step-frame`, `clamp(300px, calc(100vh - 434px), 560px)`) com rolagem interna, e `min-height: 0` no item de flex — sem ele o `overflow-y: auto` não vale nada, porque item de flex tem tamanho mínimo automático. Conferir com `WIZARD_H=900`, que é altura de **tela**, não de página: print alto esconde justamente essa falha |
 
 ## Como interpretar os resultados
 

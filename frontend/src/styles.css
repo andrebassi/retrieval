@@ -693,13 +693,22 @@ pre,
   border-left-width: 4px;
   border-radius: 10px;
   background: var(--panel);
-  padding: 16px 18px;
-  margin: 16px 0 24px;
+  padding: 12px 16px;
+  margin: 14px 0 4px;
 }
 
-.poc-answer h3 {
-  margin: 0 0 10px;
-  font-size: 1.05rem;
+/* Virou `<details>`: fechado ocupa uma linha, e o resultado inteiro cabe na
+ * tela. O `summary` fica com cara de link para dizer que abre. */
+.poc-answer > summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--accent);
+  list-style-position: outside;
+}
+
+.poc-answer[open] > summary {
+  margin-bottom: 10px;
 }
 
 .poc-answer-list {
@@ -713,39 +722,592 @@ pre,
   line-height: 1.55;
 }
 
-.poc-wizard {
+/* ── O assistente ──────────────────────────────────────────────────────────
+ *
+ * Trilha em cima, um passo por vez no meio, navegação embaixo. A trilha mostra
+ * a resposta já dada em cada passo: sem isso, no quarto passo ninguém lembra o
+ * que respondeu no primeiro — e a recomendação vira mágica em vez de
+ * consequência. */
+.poc-track {
+  list-style: none;
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  margin-bottom: 24px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin: 16px 0 14px;
+  padding: 0;
 }
 
-.poc-choice {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
-  padding: 12px 14px 14px;
-  margin: 0;
-}
-
-.poc-choice legend {
-  font-weight: 600;
-  padding: 0 6px;
+.poc-track li button {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-bottom-width: 3px;
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 7px 10px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition:
+    border-color 180ms ease,
+    background 180ms ease;
 }
 
-.poc-choice-num {
+.poc-track li button:hover {
+  border-color: var(--accent);
+}
+
+.poc-track-on button {
+  border-color: var(--accent);
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.poc-track-num {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 22px;
   width: 22px;
   height: 22px;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
   font-size: 0.78rem;
+}
+
+.poc-track-text {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.poc-track-text strong {
+  font-size: 0.82rem;
+}
+
+/* A resposta escolhida cabe numa linha ou some. Deixá-la quebrar faria a trilha
+ * mudar de altura a cada resposta, e a tela inteira dançaria embaixo dela. */
+.poc-track-text span {
+  font-size: 0.72rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Altura FIXA, não mínima. Dois motivos, e os dois são de assistente:
+ *
+ * 1. a barra de navegação vive logo abaixo. Se a moldura crescer com o
+ *    conteúdo, o "voltar / avançar / refazer" cai para fora da tela — e o
+ *    passo 4 empilhado passava de 1 200 px, então isso acontecia sempre;
+ * 2. moldura que muda de tamanho a cada passo faz a página saltar debaixo do
+ *    cursor bem na hora de clicar na próxima opção.
+ *
+ * A conta é `100vh` menos o que existe fora do passo — cabeçalho, abas, a
+ * abertura, a trilha e a própria barra de navegação, medidos em 430 px. `56vh`
+ * não servia: numa janela de 900 px dava 504, e a barra de navegação ficava
+ * 41 px abaixo da dobra. O que passar da altura rola DENTRO do passo, nunca na
+ * página. */
+.poc-step-frame {
+  position: relative;
+  height: clamp(300px, calc(100vh - 434px), 560px);
+}
+
+.poc-step {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 14px 16px 14px;
+}
+
+.poc-step-head h3 {
+  margin: 0 0 4px;
+  font-size: 1.08rem;
+}
+
+.poc-step-head .poc-note {
+  margin: 0 0 10px;
+}
+
+/* Opções à esquerda, consequência à direita. Empilha no estreito — e a ordem
+ * empilhada mantém as opções primeiro, porque o desenho sem a pergunta ao lado
+ * não se explica.
+ *
+ * `min-height: 0` é o que faz o `overflow` funcionar: item de flex tem tamanho
+ * mínimo automático igual ao conteúdo, então sem isto ele estoura a moldura em
+ * vez de rolar — e a barra de navegação some de novo. */
+.poc-step-body,
+.poc-outcome {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.poc-step-body {
+  display: grid;
+  grid-template-columns: minmax(260px, 360px) 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+/* O resultado é a única tela com muito conteúdo: vencedora e caminho de um
+ * lado, as seis comparadas do outro. */
+.poc-outcome-grid {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.poc-outcome-side {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+/* Densidade só aqui dentro: a mesma lista aparece na aba do placar, onde há a
+ * página inteira para respirar. No resultado ela divide a tela com a vencedora
+ * e precisa caber em seis linhas sem rolar. */
+.poc-outcome .poc-winner {
+  padding: 12px 14px;
+}
+
+.poc-outcome .poc-winner h3 {
+  font-size: 1.05rem;
+}
+
+.poc-outcome .poc-winner-why,
+.poc-outcome .poc-winner-needs,
+.poc-outcome .poc-winner-risk {
+  font-size: 0.79rem;
+  line-height: 1.4;
+}
+
+.poc-outcome .poc-winner code {
+  font-size: 0.76rem;
+}
+
+/* Uma linha por opção, e não três. Empilhar nome, sigla e selo dava 76 px por
+ * linha: seis linhas passavam de 450 px e o ranking sozinho não cabia no passo.
+ * Deitado, cada linha fica em 28 px — as seis somam 198 px e sobra espaço para
+ * a vencedora ao lado. O que sai do nome longo entra no `title` e no detalhe
+ * que abre no clique; nada de informação se perde, só de altura. */
+.poc-outcome .poc-rank-hit {
+  grid-template-columns: minmax(0, 1fr) 120px 46px 116px;
+  gap: 10px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+
+.poc-outcome .poc-rank-name {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+
+.poc-outcome .poc-rank-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A sigla técnica sai daqui: ela já está no cartão da vencedora e na aba do
+ * placar, e aqui custava a largura que o nome de verdade precisa. */
+.poc-outcome .poc-rank-name code {
+  display: none;
+}
+
+.poc-outcome .poc-badge {
+  margin-top: 0;
+  flex: none;
+  font-size: 0.62rem;
+}
+
+.poc-outcome .poc-rank-track {
+  height: 12px;
+}
+
+.poc-outcome .poc-rank-side {
+  font-size: 0.7rem;
+  line-height: 1.2;
+}
+
+/* Faixa do desenho, fora das colunas. Dentro da coluna de 420 px as caixas de
+ * `min-width: 168px` quebravam a linha e o desenho passava de 260 px de altura,
+ * empilhado — que é o oposto do que ele diz. Na largura inteira o caminho se lê
+ * deitado, "duas buscas → soma → lista", em 70 px. */
+.poc-outcome-flow {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--line);
+}
+
+.poc-outcome-flow .poc-pipe {
+  margin: 0;
+  flex-wrap: nowrap;
+}
+
+.poc-outcome-flow .poc-pipe-box {
+  min-width: 140px;
+  padding: 4px 9px;
+  font-size: 0.82rem;
+}
+
+.poc-outcome-flow .poc-pipe-box span {
+  font-size: 0.66rem;
+  line-height: 1.25;
+}
+
+.poc-outcome-flow .poc-pipe-col {
+  gap: 6px;
+}
+
+.poc-outcome .poc-answer {
+  margin: 6px 0 0;
+  padding: 8px 12px;
+}
+
+.poc-outcome .poc-answer > summary {
+  font-size: 0.85rem;
+}
+
+.poc-outcome .poc-legend {
+  margin-top: 6px;
+  font-size: 0.72rem;
+}
+
+.poc-outcome .poc-rank {
+  gap: 4px;
+}
+
+.poc-outcome .poc-rank-title {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 1100px) {
+  .poc-outcome-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .poc-step-body {
+    grid-template-columns: 1fr;
+  }
+  .poc-track {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.poc-steps-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px 0 22px;
+}
+
+.poc-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px 14px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.poc-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.poc-nav-go {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.poc-nav-where {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── As animações explicativas ─────────────────────────────────────────────
+ *
+ * Cada passo tem um desenho que reage à opção sob o cursor. Elas não repetem a
+ * opção em outro formato: mostram a CONSEQUÊNCIA dela, que é o que o texto não
+ * consegue dizer sem virar parágrafo. */
+.poc-demo {
+  border: 1px dashed var(--line);
+  border-radius: 10px;
+  background: var(--canvas);
+  padding: 14px 16px;
+}
+
+.poc-demo-cap {
+  margin: 0 0 12px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.poc-demo-quote {
+  display: block;
+  margin-top: 4px;
+  color: var(--accent);
+}
+
+.poc-demo-verdict {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 12px 0 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+
+.poc-good {
+  color: var(--good);
+}
+
+.poc-bad {
+  color: var(--bad);
+}
+
+/* Passo 1 — a lista de dez e o holofote da régua. */
+.poc-slots {
+  --slot-h: 22px;
+  --slot-gap: 4px;
+  position: relative;
+  display: grid;
+  gap: var(--slot-gap);
+  padding: 4px;
+}
+
+.poc-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: var(--slot-h);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.poc-slot-n {
+  width: 22px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.poc-slot-bar {
+  height: 8px;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.poc-slot-target .poc-slot-bar {
+  background: var(--good);
+}
+
+.poc-slot-target .poc-slot-tag {
+  color: var(--good);
+  font-weight: 600;
+}
+
+/* O holofote encosta na borda dos cartões em vez de cobri-los: preencher por
+ * cima escondia justamente a barra verde que a pessoa precisa ver entrar. */
+.poc-slot-light {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+
+/* Passo 2 — a régua de tempo e o corte do orçamento. */
+.poc-ruler {
+  position: relative;
+  height: 30px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+
+.poc-ruler-ok {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: color-mix(in srgb, var(--good) 16%, transparent);
+  border-radius: 6px 0 0 6px;
+}
+
+.poc-ruler-cut {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--bad);
+}
+
+.poc-ruler-cut span {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--bad);
+}
+
+.poc-ruler-tick {
+  position: absolute;
+  bottom: 4px;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 0.64rem;
+  color: var(--muted);
+}
+
+.poc-ruler-tick-end {
+  transform: translateX(-100%);
+}
+
+/* Os pontos das seis na régua. Altura fixa por linha e `left` em porcentagem:
+ * dois pontos no mesmo milissegundo ficariam um sobre o outro, então cada um
+ * ganha a sua linha e a coluna vira a leitura do tempo. */
+.poc-dots {
+  list-style: none;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  height: 132px;
+}
+
+/* `translate:` e não `transform:` — o `motion` anima `y` nestes itens e escreve
+ * `transform` inline, que venceria a regra do CSS sem avisar: o deslocamento
+ * simplesmente não aconteceria. `translate` é propriedade própria, some do
+ * caminho do `transform` e compõe com ele. */
+.poc-dot {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  translate: -3px 0;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.poc-dot:nth-child(1) { top: 2px; }
+.poc-dot:nth-child(2) { top: 24px; }
+.poc-dot:nth-child(3) { top: 46px; }
+.poc-dot:nth-child(4) { top: 68px; }
+.poc-dot:nth-child(5) { top: 90px; }
+.poc-dot:nth-child(6) { top: 112px; }
+
+.poc-dot-pin {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--good);
+  flex: 0 0 7px;
+}
+
+/* O ponto marca o tempo; o nome se acomoda do lado que couber. O bloco inteiro
+ * recua a própria largura, e o `row-reverse` põe o pino de volta na ponta
+ * direita — que é o ponto do `left`. */
+.poc-dot-flip {
+  flex-direction: row-reverse;
+  translate: calc(-100% + 3px) 0;
+}
+
+.poc-dot-out .poc-dot-pin {
+  background: var(--muted);
+}
+
+.poc-dot-out .poc-dot-name {
+  text-decoration: line-through;
+}
+
+/* Passo 3 — as mesmas duas buscas, notas trocadas pelo tipo de pergunta. */
+.poc-vs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.poc-vs-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 52px;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.78rem;
+}
+
+.poc-vs-track {
+  position: relative;
+  height: 16px;
+  border-radius: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.poc-vs-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--muted);
+  border-radius: 3px;
+}
+
+.poc-vs-top .poc-vs-fill {
+  background: var(--accent);
+}
+
+.poc-vs-top .poc-vs-name {
+  font-weight: 600;
+}
+
+.poc-vs-value {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* A bolinha que percorre a seta do pipeline: diz a direção do fluxo. Seta
+ * parada já foi lida como "isso volta pra trás". */
+.poc-pipe-dot {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
 .poc-choice-options {
@@ -947,15 +1509,55 @@ pre,
 }
 
 .poc-rank-row {
-  display: grid;
-  grid-template-columns: 210px 1fr 56px 190px;
-  gap: 10px;
-  align-items: center;
-  padding: 6px 8px;
   border-radius: 8px;
   background: var(--panel);
   border: 1px solid var(--line);
   transition: opacity 200ms ease;
+  overflow: hidden;
+}
+
+/* A linha inteira é o alvo do clique, não um ícone de "expandir" no canto: o
+ * texto do lado já convida a olhar, e um alvo de 40 px de altura acerta no
+ * primeiro toque. `button` e não `div` com `onClick` porque teclado e leitor de
+ * tela precisam chegar aqui — é onde mora o "por que não a segunda colocada". */
+.poc-rank-hit {
+  display: grid;
+  grid-template-columns: 210px 1fr 56px 190px;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.poc-rank-hit:hover {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.poc-rank-detail {
+  overflow: hidden;
+  border-top: 1px dashed var(--line);
+  background: var(--canvas);
+}
+
+.poc-rank-detail p {
+  margin: 0;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.poc-rank-detail p:first-child {
+  padding-top: 9px;
+}
+
+.poc-rank-detail p:last-child {
+  padding-bottom: 9px;
 }
 
 .poc-rank-out {
@@ -1026,9 +1628,10 @@ pre,
   left: 0;
   background: var(--accent);
   border-radius: 4px;
-  transform-origin: left center;
-  animation: poc-grow 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: calc(var(--i, 0) * 70ms);
+  /* Quem anima é o `motion` (largura com mola), não um `@keyframes`: a barra
+   * precisa crescer DE NOVO a cada troca de cenário, e animação CSS só dispara
+   * quando o elemento nasce. Antes isso exigia remontar o bloco inteiro com
+   * `key` — o que reiniciava também o que não tinha mudado. */
   opacity: 0.85;
 }
 

@@ -32,7 +32,17 @@ shot() {
   # `--virtual-time-budget` avança o relógio da página até as chamadas de rede
   # terminarem; sem ele o print sai antes do `/api/state` responder e mostra
   # "carregando a PoC…".
+  # `--force-prefers-reduced-motion` não é preferência de gosto: sem ela o print
+  # é uma corrida. As animações de entrada nascem em `opacity: 0` e só sobem no
+  # `requestAnimationFrame`, que no headless nem sempre roda antes do disparo —
+  # o passo 4 saiu VAZIO numa rodada e cheio na seguinte, com o mesmo bundle
+  # (122 917 B contra 315 971 B). Layout de pé, conteúdo transparente, canário
+  # verde: exatamente a falha silenciosa que estes prints existem para pegar.
+  # Com a flag, o `useReducedMotion()` devolve true, todo `initial` vira `false`
+  # e o desenho nasce pronto — de quebra, é o caminho de acessibilidade que
+  # passa a ser conferido a cada rodada.
   timeout 90s "$CHROME" --headless --disable-gpu --no-sandbox \
+    --force-prefers-reduced-motion \
     --window-size="1440,${height}" --virtual-time-budget=20000 \
     --screenshot="$OUT/$name.png" "http://127.0.0.1:8081/$query" >/dev/null 2>&1
   local bytes
@@ -48,11 +58,21 @@ shot() {
 # A aba de entrada é a recomendação, então a URL sem parâmetro nenhum já cai
 # nela — e é justamente o cenário mais comum (lê o primeiro resultado, espera um
 # clique, perguntas misturadas).
-shot recomendacao ""                            1800
+# 900 px é altura de tela, não de página: o assistente foi feito para caber sem
+# rolar, e um print alto esconderia justamente a falha que importa aqui. Se o
+# passo vazar, aparece cortado no PNG — que é o sinal que se quer ver.
+WIZARD_H=900
+shot recomendacao ""                            "$WIZARD_H"
+# Cada passo tem um desenho diferente. Um print só provaria que o primeiro
+# desenhou — os outros três renderizam num ramo de código que nunca teria sido
+# olhado. `?step=` é 1-based na URL.
+shot passo-tempo     "?step=2"                  "$WIZARD_H"
+shot passo-perguntas "?step=3"                  "$WIZARD_H"
+shot passo-resposta  "?step=4"                  "$WIZARD_H"
 # As três respostas do escolhedor são estado de URL. Sem isso, o print só
 # pegaria o cenário inicial e a parte interativa da aba ficaria sem prova
-# nenhuma: este segundo print tem que mostrar OUTRA vencedora que o de cima.
-shot recomendacao-llm "?reader=llm&budget=patient&kind=conceptual" 1800
+# nenhuma: este print tem que mostrar OUTRA vencedora que o `passo-resposta`.
+shot recomendacao-llm "?reader=llm&budget=patient&kind=conceptual&step=4" "$WIZARD_H"
 shot busca        "?tab=search"                 1700
 shot documento    "?tab=document&doc=ch_5506"   1500
 shot placar       "?tab=score"                  1000

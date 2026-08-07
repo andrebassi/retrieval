@@ -30,7 +30,6 @@ import {
 } from "@phosphor-icons/react";
 
 import {
-  fetchAdvice,
   fetchCode,
   fetchDisagreements,
   fetchDocument,
@@ -38,6 +37,8 @@ import {
   fetchSearch,
   fetchState,
 } from "./api.js";
+import { Failed, Loading, useAsync } from "./common.jsx";
+import { AdviceTab, DEFAULT_SCENARIO, DEFAULT_STEP, STEP_IDS } from "./Advice.jsx";
 
 // A recomendação vem primeiro e é a aba de entrada. A pergunta que sobrou
 // depois de tudo pronto foi “qual delas eu uso?” — se a resposta mora na quinta
@@ -50,9 +51,6 @@ const TABS = [
   { id: "disagree", label: "Onde elas discordam", icon: ArrowsLeftRight },
 ];
 const DEFAULT_TAB = "advice";
-// O cenário mais comum de verdade: alguém clicou em buscar, lê o primeiro
-// resultado, e as perguntas misturam código com descrição.
-const DEFAULT_SCENARIO = { reader: "first", budget: "click", kind: "hybrid" };
 
 // Famílias do gabarito, em ordem de leitura — literal primeiro porque é onde o
 // vetor falha, e é o contraste que a tela quer mostrar antes de qualquer média.
@@ -68,34 +66,6 @@ const KIND_NAME = { record: "documento de trabalho", prose: "texto da Wikipédia
 // tradução mora aqui e não no back-end porque o valor também é usado como
 // filtro; traduzir na origem quebraria a comparação.
 const SOURCE_NAME = { handwritten: "escrito à mão", wikipedia: "Wikipédia" };
-
-function useAsync(loader, deps) {
-  const [state, setState] = useState({ status: "loading" });
-  useEffect(() => {
-    let alive = true;
-    setState({ status: "loading" });
-    loader()
-      .then((data) => alive && setState({ status: "ok", data }))
-      .catch((error) => alive && setState({ status: "error", error }));
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps);
-  return state;
-}
-
-function Loading({ what }) {
-  return <p className="poc-muted">carregando {what}…</p>;
-}
-
-function Failed({ error }) {
-  return (
-    <div className="poc-alert">
-      <Warning size={18} weight="bold" /> {String(error.message || error)}
-    </div>
-  );
-}
 
 /** Barra normalizada DENTRO da coluna — entre colunas não compara.
  *
@@ -737,280 +707,6 @@ function DisagreeTab({ labels, onPickDocument }) {
   );
 }
 
-// As caixinhas do desenho “o que eu monto, afinal”. O back-end devolve só os
-// nomes das etapas; o texto de cada uma mora aqui porque é texto de tela.
-const STAGE = {
-  lexical: { title: "Busca por palavra", note: "acha o que está escrito, letra por letra" },
-  dense: { title: "Busca por significado", note: "acha o assunto, mesmo dito com outras palavras" },
-  fusion: { title: "Juntar as listas", note: "soma as posições, não as notas" },
-  rerank: { title: "Revisor", note: "relê os 20 primeiros junto com a pergunta" },
-};
-
-/** O desenho do que a recomendação manda montar.
- *
- * As duas buscas ficam empilhadas de propósito: elas rodam **ao mesmo tempo**,
- * e desenhá-las em fila daria a entender que uma espera a outra — que é
- * exatamente a leitura errada de por que a fusão custa 115 ms e não 230. */
-function Pipeline({ stages }) {
-  const parallel = stages.filter((stage) => stage === "lexical" || stage === "dense");
-  const serial = stages.filter((stage) => stage !== "lexical" && stage !== "dense");
-  return (
-    <div className="poc-pipe" aria-label="desenho do que montar">
-      <div className="poc-pipe-col">
-        {parallel.map((stage) => (
-          <div key={stage} className={`poc-pipe-box poc-pipe-${stage}`}>
-            <strong>{STAGE[stage].title}</strong>
-            <span>{STAGE[stage].note}</span>
-          </div>
-        ))}
-      </div>
-      {serial.map((stage) => (
-        <div key={stage} className="poc-pipe-step">
-          <span className="poc-pipe-arrow" aria-hidden="true" />
-          <div className={`poc-pipe-box poc-pipe-${stage}`}>
-            <strong>{STAGE[stage].title}</strong>
-            <span>{STAGE[stage].note}</span>
-          </div>
-        </div>
-      ))}
-      <div className="poc-pipe-step">
-        <span className="poc-pipe-arrow" aria-hidden="true" />
-        <div className="poc-pipe-box poc-pipe-out">
-          <strong>a lista que a pessoa vê</strong>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Uma pergunta do escolhedor: título, dica e as opções em botão. */
-function Choice({ index, title, note, options, value, onChange }) {
-  return (
-    <fieldset className="poc-choice">
-      <legend>
-        <span className="poc-choice-num">{index}</span> {title}
-      </legend>
-      <p className="poc-note">{note}</p>
-      <div className="poc-choice-options">
-        {options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            className={value === option.id ? "poc-opt poc-opt-on" : "poc-opt"}
-            aria-pressed={value === option.id}
-            onClick={() => onChange(option.id)}
-          >
-            <strong>{option.label}</strong>
-            <span>{option.hint}</span>
-          </button>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
-
-function AdviceTab({ explain, scenario, onScenario }) {
-  const advice = useAsync(() => fetchAdvice(), []);
-
-  if (advice.status === "loading") return <Loading what="a recomendação" />;
-  if (advice.status === "error") return <Failed error={advice.error} />;
-
-  const data = advice.data;
-  // A URL é digitável, então pode trazer id inventado — e um `?reader=xpto`
-  // acharia `undefined` no grid e derrubaria a aba inteira. Quem diz o que
-  // existe é o payload, não o front.
-  const valid = (rows, id, fallback) => (rows.some((row) => row.id === id) ? id : fallback);
-  const reader = valid(data.readers, scenario.reader, DEFAULT_SCENARIO.reader);
-  const budget = valid(data.budgets, scenario.budget, DEFAULT_SCENARIO.budget);
-  const kind = valid(data.kinds, scenario.kind, DEFAULT_SCENARIO.kind);
-  const change = (field) => (id) => onScenario({ reader, budget, kind, [field]: id });
-  const key = `${reader}|${budget}|${kind}`;
-  const pick = data.grid[key];
-  const byName = Object.fromEntries(data.strategies.map((row) => [row.name, row]));
-  const readerRow = data.readers.find((row) => row.id === reader);
-  const base = byName[data.default.base];
-  const upgrade = byName[data.default.upgrade];
-  const risky = byName[data.default.avoid_alone];
-  const pct = (value) => `${(value * 100).toFixed(1)}%`;
-  // Onde começa o empate: tudo que estiver a menos de uma pergunta do líder
-  // está dentro da faixa, e a tela desenha isso em vez de só afirmar.
-  const bandLeft = pick.value == null ? null : pick.value * 100 - data.band_points;
-
-  return (
-    <>
-      <p className="poc-intro">
-        Escolher motor de busca <strong>não</strong> é escolher o melhor da
-        tabela. As seis erram mais ou menos a mesma quantidade — só que em
-        perguntas diferentes. Escolher é decidir <em>qual erro</em> você aceita,
-        e isso depende de três coisas: quem lê o resultado, quanto tempo dá para
-        esperar, e como são as perguntas.
-      </p>
-
-      <section className="poc-answer">
-        <h3>A resposta curta</h3>
-        <ol className="poc-answer-list">
-          <li>
-            <strong>Comece pela fusão por posição</strong> (<code>{base.name}</code>) —
-            {" "}“{base.label}”. Traz a lista cheia nas {data.queries.total} perguntas,
-            põe o documento certo entre os dez em {pct(base.hit_at_10)} delas, responde
-            em {base.p50.toFixed(0)} ms e <em>não tem nada para calibrar</em>.
-          </li>
-          <li>
-            <strong>Ligue o revisor</strong> (<code>{upgrade.name}</code>) só quando o
-            primeiro resultado for o que a pessoa lê: ele sobe o acerto de primeira de{" "}
-            {pct(base.hit_at_1)} para {pct(upgrade.hit_at_1)}, e cobra{" "}
-            {upgrade.p50.toFixed(0)} ms no lugar de {base.p50.toFixed(0)} ms.
-          </li>
-          <li>
-            <strong>Nunca use a busca por significado sozinha.</strong> Na média ela
-            parece boa ({pct(risky.hit_at_1)}), mas nas perguntas com código acerta{" "}
-            {pct(risky.by_family.literal)} — erra quase metade, e erra confiante.
-          </li>
-        </ol>
-        <p className="poc-note">
-          Abaixo dá para conferir isso: responda as três perguntas e a tela
-          recalcula o vencedor com os mesmos números medidos, sem opinião no meio.
-        </p>
-      </section>
-
-      <div className="poc-wizard">
-        <Choice
-          index={1}
-          title="Quem lê o resultado?"
-          note="Isto troca a régua. Acertar de primeira e ter o certo em algum lugar dos dez são metas diferentes — e a opção que ganha numa perde na outra."
-          options={data.readers}
-          value={reader}
-          onChange={change("reader")}
-        />
-        <Choice
-          index={2}
-          title="Quanto tempo dá para esperar?"
-          note="Isto elimina candidatas antes de comparar nota. Quem não responde no prazo sai da disputa, mesmo acertando mais."
-          options={data.budgets}
-          value={budget}
-          onChange={change("budget")}
-        />
-        <Choice
-          index={3}
-          title="Como são as perguntas?"
-          note="Isto é o que a média esconde. As mesmas seis mudam de posição conforme o tipo de pergunta — é aqui que a tabela geral engana."
-          options={data.kinds}
-          value={kind}
-          onChange={change("kind")}
-        />
-      </div>
-
-      {/* `key` remonta o bloco a cada resposta: é o que faz as barras crescerem
-          de novo em vez de saltar para o novo tamanho. A animação aqui não é
-          enfeite — ela mostra que a ordem MUDOU, que é a coisa toda que esta
-          aba quer dizer. */}
-      <div className="poc-outcome" key={key}>
-        {pick.winner ? (
-          <>
-            <div className="poc-winner">
-              <span className="poc-winner-tag">use esta</span>
-              <h3>{byName[pick.winner].label}</h3>
-              <code>{pick.winner}</code>
-              <p className="poc-winner-why">{pick.why}</p>
-              <p className="poc-winner-needs">
-                <strong>Precisa de:</strong> {byName[pick.winner].trait.needs} ·{" "}
-                <strong>Ajuste:</strong> {byName[pick.winner].trait.tuning}
-              </p>
-              <p className="poc-winner-risk">
-                <strong>O que a derruba:</strong> {byName[pick.winner].trait.risk}
-              </p>
-            </div>
-            <Pipeline stages={pick.pipeline} />
-          </>
-        ) : (
-          <div className="poc-alert">
-            <Warning size={18} weight="bold" /> {pick.why}
-          </div>
-        )}
-
-        {pick.notes.map((note) => (
-          <p key={note} className="poc-warnline">
-            <Warning size={16} weight="bold" /> {note}
-          </p>
-        ))}
-
-        <h4 className="poc-rank-title">
-          Todas as seis neste cenário — {readerRow.metric_label}, nas perguntas do
-          tipo escolhido
-        </h4>
-        <ol className="poc-rank">
-          {pick.ranked.map((row, position) => (
-            <li
-              key={row.name}
-              className={row.eliminated ? "poc-rank-row poc-rank-out" : "poc-rank-row"}
-              style={{ "--i": position }}
-            >
-              <span className="poc-rank-name">
-                <strong>{row.label}</strong>
-                <code>{row.name}</code>
-                {row.name === pick.winner && <em className="poc-badge">escolhida</em>}
-                {row.name !== pick.winner && pick.tied.includes(row.name) && (
-                  <em className="poc-badge poc-badge-tie">empate técnico</em>
-                )}
-              </span>
-              <span className="poc-rank-track">
-                {!row.eliminated && bandLeft != null && (
-                  <span
-                    className="poc-rank-band"
-                    style={{ left: `${bandLeft}%`, width: `${data.band_points}%` }}
-                    title={`Faixa de uma pergunta: ${data.band_points}%`}
-                  />
-                )}
-                <span className="poc-rank-fill" style={{ width: `${row.value * 100}%` }} />
-              </span>
-              <span className="poc-rank-value">{pct(row.value)}</span>
-              <span className="poc-rank-side">
-                {row.eliminated
-                  ? row.reason
-                  : `${row.p50.toFixed(1)} ms${
-                      row.starved ? ` · ${row.starved} listas incompletas` : ""
-                    }`}
-              </span>
-            </li>
-          ))}
-        </ol>
-        <p className="poc-legend">
-          A faixa listrada tem <strong>{data.band_points} pontos</strong> de largura,
-          que é o que <strong>uma única pergunta</strong> vale com{" "}
-          {data.queries.total} perguntas medidas. Quem cai dentro dela não está
-          atrás da líder: está empatado. Toda comparação de busca que você ler por
-          aí ignora essa faixa — e é por isso que tanta gente troca de motor para
-          ganhar dois pontos que não existem.
-        </p>
-      </div>
-
-      <details className="poc-plain" open={explain}>
-        <summary>por que não existe “a melhor” — leia antes de discordar</summary>
-        <p>
-          A tabela de médias resolve a pergunta errada. Ela responde “qual acerta
-          mais no geral”, e ninguém tem um sistema “no geral”: seu sistema tem um
-          tipo de pergunta que aparece toda hora e um jeito específico de mostrar
-          o resultado. A média de {pct(risky.hit_at_1)} da busca por significado é a
-          média entre acertar {pct(risky.by_family.conceptual)} nas descrições e{" "}
-          {pct(risky.by_family.literal)} nos códigos — e não descreve nenhuma das
-          duas situações.
-        </p>
-        <p className="poc-plain-good">
-          <strong>O que transfere para o seu projeto:</strong> a forma das curvas.
-          Palavra ganha no código, significado ganha na descrição, e juntar as duas
-          não perde feio em nenhum dos dois. Isso vale em qualquer acervo.
-        </p>
-        <p className="poc-plain-bad">
-          <strong>O que NÃO transfere:</strong> os números. São{" "}
-          {data.queries.total} perguntas escritas para esta comparação, sobre um
-          acervo pequeno. Meça no seu — o mesmo código que roda aqui roda lá, e é
-          exatamente para isso que esta PoC existe.
-        </p>
-      </details>
-    </>
-  );
-}
-
 /** Aba, documento e explicações saem da URL
  * (`?tab=score&doc=ch_5506`, `?explain=1`).
  *
@@ -1038,7 +734,16 @@ function readUrl() {
       budget: params.get("budget") ?? DEFAULT_SCENARIO.budget,
       kind: params.get("kind") ?? DEFAULT_SCENARIO.kind,
     },
+    // O passo do assistente é escrito por humano na barra de endereço (`?step=3`
+    // é o quarto), então entra 1-based e sai clampeado: `?step=99` volta para o
+    // último em vez de renderizar tela vazia.
+    step: clampStep(Number(params.get("step")) - 1),
   };
+}
+
+function clampStep(value) {
+  if (!Number.isFinite(value)) return DEFAULT_STEP;
+  return Math.min(Math.max(Math.trunc(value), 0), STEP_IDS.length - 1);
 }
 
 export function App() {
@@ -1050,6 +755,7 @@ export function App() {
   const [tab, setTab] = useState(initial.tab);
   const [docId, setDocId] = useState(initial.doc);
   const [scenario, setScenario] = useState(initial.scenario);
+  const [step, setStep] = useState(initial.step);
   const state = useAsync(() => fetchState(), []);
 
   // `replaceState` e não `pushState`: trocar de aba não é navegação, e encher o
@@ -1066,9 +772,12 @@ export function App() {
     for (const [field, value] of Object.entries(scenario)) {
       if (value !== DEFAULT_SCENARIO[field]) params.set(field, value);
     }
+    // Mesma regra do cenário: só sai na URL quando não é o primeiro passo. E
+    // 1-based, porque quem digita `?step=2` quer o segundo, não o terceiro.
+    if (step !== DEFAULT_STEP) params.set("step", String(step + 1));
     const query = params.toString();
     window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
-  }, [tab, docId, initial.explain, scenario]);
+  }, [tab, docId, initial.explain, scenario, step]);
 
   const pickDocument = useCallback((id) => {
     setDocId(id);
@@ -1123,7 +832,13 @@ export function App() {
 
       <main>
         {tab === "advice" && (
-          <AdviceTab explain={initial.explain} scenario={scenario} onScenario={setScenario} />
+          <AdviceTab
+            explain={initial.explain}
+            scenario={scenario}
+            onScenario={setScenario}
+            step={step}
+            onStep={(next) => setStep(clampStep(next))}
+          />
         )}
         {tab === "search" && (
           <SearchTab state={data} explain={initial.explain} onPickDocument={pickDocument} />

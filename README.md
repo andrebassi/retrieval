@@ -668,7 +668,7 @@ marcado em cada resultado.
 task web:build    # compila o front para dentro do pacote Python
 task web          # http://127.0.0.1:8081 (compila sozinho se faltar o bundle)
 task web:check    # CANÁRIO do front — todas as rotas e o bundle, sem browser
-task web:shots    # sete prints (exige 'task web' de pé)
+task web:shots    # dez prints (exige 'task web' de pé)
 ```
 
 Cinco abas, cada uma respondendo a uma pergunta diferente. A primeira é a de
@@ -676,20 +676,24 @@ entrada, e responde a pergunta que sobra depois de ler a tabela inteira:
 
 | Aba | Responde |
 |---|---|
-| **Qual devo usar?** | responda três perguntas (quem lê o resultado, quanto tempo dá para esperar, como são as perguntas) e a tela recalcula a vencedora nos números medidos — com a faixa de empate desenhada, o que a escolhida exige para viver e o que a derruba |
+| **Qual devo usar?** | assistente de 4 passos: quem lê o resultado, quanto tempo dá para esperar, como são as perguntas — e o resultado. Cada passo desenha a consequência da resposta (a lista até onde alguém olha, a régua de tempo com quem sai da disputa, o mesmo trio de barras por tipo de pergunta), e o último recalcula a vencedora nos números medidos, com a faixa de empate desenhada e o caminho a montar |
 | **Fazer uma pergunta** | as 6 estratégias sobre a mesma consulta, com acerto, latência e a marca de **voltou incompleta** quando devolveu menos que `k` |
 | **Como isso fica guardado** | o que existe no banco para um documento: lexemas com `tf`/`df`/IDF, as 24 primeiras dimensões do vetor e o texto indexado |
 | **Quem acerta mais** | a mesma tabela do `results/evaluation.json`, servida byte a byte — não recalculada |
 | **Onde elas discordam** | os 15 casos em que as estratégias divergem, com id, texto da consulta e o rank que cada uma deu |
 
 Cada aba tem **URL própria** (`?tab=score`, `?tab=document&doc=ch_5506`), e o
-escolhedor também (`?reader=llm&budget=patient&kind=conceptual`). Não é enfeite:
-sem isso não existe link para uma aba nem para um cenário, e nenhuma ferramenta
-que fotografa a tela chega às outras quatro — foi o que dispensou um script de
-CDP com websocket só para clicar em botão. É também o que permite provar por
-print que o escolhedor **muda de resposta**: os dois primeiros prints do
-`task web:shots` são o mesmo componente com cenários diferentes, e recomendam
-estratégias diferentes.
+assistente também, inclusive o passo em que ele está
+(`?reader=llm&budget=patient&kind=conceptual&step=4`). Não é enfeite: sem isso
+não existe link para uma aba nem para um cenário, e nenhuma ferramenta que
+fotografa a tela chega às outras quatro — foi o que dispensou um script de CDP
+com websocket só para clicar em botão. No assistente o `step` faz mais: cada
+passo desenha uma coisa diferente, então um print só provaria que o **primeiro**
+desenhou, e os outros três renderizariam num ramo que nunca teria sido olhado —
+por isso os prints `passo-tempo`, `passo-perguntas` e `passo-resposta`. É também
+o que permite provar por print que o assistente **muda de resposta**:
+`recomendacao` e `recomendacao-llm` são o mesmo componente com cenários
+diferentes, e recomendam estratégias diferentes.
 
 **A tela fala com quem não é da área.** O nome de cada estratégia aparece em
 português (`dense` → "Busca por significado"), e cada cartão dobra uma explicação
@@ -704,7 +708,11 @@ Decisões que valem registro:
 - **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
   `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
   precisa de Node — precisa do bundle, que já está no lugar. Medido: `index.html`
-  554 B, CSS 138,21 kB (22,99 kB gzip), JS 252,09 kB (77,70 kB gzip).
+  554 B, CSS 144,99 kB (24,18 kB gzip), JS 401,43 kB (125,08 kB gzip). O salto de
+  252 kB para 401 kB no JS é o `motion` — as animações do assistente. Custa
+  47,4 kB gzip a mais, num arquivo servido da própria máquina; o que ele compra é
+  a régua de tempo e as barras crescendo, que é o que faz alguém entender o
+  empate sem ler a tabela.
 - **A barra de pontuação normaliza dentro da coluna, nunca entre estratégias.**
   BM25 vai de 1,5 a 28; cosseno de 0,29 a 0,78; RRF são frações de 1/61. Uma
   escala comum faria a barra do RRF sumir e dar a impressão de que a fusão
