@@ -14,7 +14,13 @@ export function useAsync(loader, deps) {
   useEffect(() => {
     let alive = true;
     setState({ status: "loading" });
-    loader()
+    // `Promise.resolve().then(loader)` e não `loader()` direto: assim um loader
+    // que lança de forma SÍNCRONA também cai no `.catch`. Chamado direto, a
+    // exceção escapa pelo `useEffect` e derruba a árvore inteira — a aba fica em
+    // branco e as outras param de responder ao clique, em vez de aparecer o
+    // cartão de erro que este componente existe para mostrar.
+    Promise.resolve()
+      .then(loader)
       .then((data) => alive && setState({ status: "ok", data }))
       .catch((error) => alive && setState({ status: "error", error }));
     return () => {

@@ -14,3 +14,9 @@ data/corpus.jsonl
 data/corpus.json
 results/*.json
 !results/REPORT.md
+
+# Front compilado do Node e a versão publicável. `dist/` é derivado de
+# `task web:static` — o que é versionado é o bundle de `web/static/`, que é o que
+# faz a PoC rodar sem Node.
+frontend/node_modules/
+dist/

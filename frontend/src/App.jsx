@@ -36,9 +36,12 @@ import {
   fetchMeasured,
   fetchSearch,
   fetchState,
+  BAKED_QUERIES,
+  IS_SNAPSHOT,
 } from "./api.js";
 import { Failed, Loading, useAsync } from "./common.jsx";
 import { decimal, ms, num, pct } from "./format.js";
+import { REPO_LABEL, REPO_URL } from "./repo.js";
 import { AdviceTab, DEFAULT_SCENARIO } from "./Advice.jsx";
 
 // A recomendação vem primeiro e é a aba de entrada. A pergunta que sobrou
@@ -178,10 +181,12 @@ function SearchTab({ state, explain, onPickDocument }) {
   return (
     <>
       <p className="poc-intro">
-        Escreva uma pergunta — ou clique numa das prontas abaixo. Ela vai para as
-        seis formas de buscar <strong>ao mesmo tempo</strong>, e cada uma devolve
-        a sua lista. Onde as listas ficam diferentes é onde a escolha do motor
-        muda o que a pessoa vê.
+        {IS_SNAPSHOT
+          ? "Clique numa das perguntas prontas abaixo."
+          : "Escreva uma pergunta — ou clique numa das prontas abaixo."}{" "}
+        Ela vai para as seis formas de buscar <strong>ao mesmo tempo</strong>, e
+        cada uma devolve a sua lista. Onde as listas ficam diferentes é onde a
+        escolha do motor muda o que a pessoa vê.
       </p>
 
       <form
@@ -194,7 +199,11 @@ function SearchTab({ state, explain, onPickDocument }) {
         <input
           value={text}
           onChange={(event) => setText(event.target.value)}
-          placeholder="digite uma pergunta em português"
+          placeholder={
+            IS_SNAPSHOT
+              ? "na versão publicada, só as perguntas medidas respondem"
+              : "digite uma pergunta em português"
+          }
           aria-label="pergunta"
         />
         <label>
@@ -213,9 +222,10 @@ function SearchTab({ state, explain, onPickDocument }) {
 
       <p className="poc-note">
         As perguntas prontas têm <strong>resposta certa definida à mão</strong> —
-        por isso a tela consegue dizer quem acertou. Numa pergunta digitada por
-        você ninguém sabe qual era a resposta esperada, então os resultados
-        aparecem sem nota.
+        por isso a tela consegue dizer quem acertou.{" "}
+        {IS_SNAPSHOT
+          ? "Pergunta digitada não tem resposta congelada, e a tela diz isso em vez de devolver lista vazia: vazio aqui leria como “nenhum motor achou nada”, que é a conclusão errada."
+          : "Numa pergunta digitada por você ninguém sabe qual era a resposta esperada, então os resultados aparecem sem nota."}
       </p>
 
       <div className="poc-suggestions">
@@ -824,6 +834,32 @@ export function App() {
               <span>nada sai desta máquina</span>
             </li>
           </ul>
+          {/* O link do código fica no cabeçalho e não no rodapé: quem chega por
+              um link de fora e quer conferir a conta procura o repositório antes
+              de rolar a página inteira. `rel` completo porque `target=_blank`
+              sem `noopener` entrega `window.opener` à página de destino. */}
+          <p className="poc-source">
+            <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+              {REPO_LABEL}
+            </a>
+            <span> · código aberto, MIT</span>
+          </p>
+          {/* Só na versão publicada. O aviso vem antes de qualquer número porque
+              é ele que define o que os números são: resposta congelada de uma
+              execução real, não consulta feita agora. Sem isso a tela promete
+              uma busca ao vivo que este host não tem como cumprir. */}
+          {IS_SNAPSHOT && (
+            <p className="poc-frozen">
+              <Warning size={15} weight="bold" />
+              <span>
+                Esta é a versão publicada: o Postgres e o modelo rodam só na
+                máquina, então as respostas das{" "}
+                <strong>{BAKED_QUERIES.length} perguntas medidas</strong> foram
+                congeladas de uma execução real. Pergunta nova exige rodar o
+                projeto — o repositório tem o passo a passo.
+              </span>
+            </p>
+          )}
         </div>
         <nav className="poc-tabs">
           {TABS.map(({ id, label, icon: Icon }) => (

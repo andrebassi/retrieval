@@ -4,9 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
+    <!-- Ícone embutido como data URI, não como arquivo. Sem ele o navegador pede
+         `/favicon.ico` e leva 404 em todo carregamento — barulho no log de um
+         host estático, e um falso positivo permanente no canário que confere se
+         alguma requisição falhou. Embutido, não há requisição nenhuma, e o
+         caminho não depende do `base` do Vite (que muda entre `/static/` e `/`). -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f38020'/%3E%3Ccircle cx='14' cy='14' r='6.5' fill='none' stroke='%23fff' stroke-width='3'/%3E%3Cpath d='M19 19l6 6' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E"
+    />
     <title>PoC — recuperação: BM25 vs vetor vs fusão vs reranking</title>
-    <script type="module" crossorigin src="/static/assets/index-BMhTQTM_.js"></script>
-    <link rel="stylesheet" crossorigin href="/static/assets/index-DizOStis.css">
+    <script type="module" crossorigin src="/static/assets/index-CYiY3Ulv.js"></script>
+    <link rel="stylesheet" crossorigin href="/static/assets/index-BT7N1ww7.css">
   </head>
   <body>
     <div id="root"></div>

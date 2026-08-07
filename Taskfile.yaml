@@ -98,6 +98,31 @@ tasks:
     cmds:
       - bash scripts/14-web-shots.sh 2>&1 | tee {{.LOG}}-web-shots.log
 
+  web:static:
+    desc: "Monta dist/ publicável: o mesmo front com a API congelada (exige 'task web')"
+    cmds:
+      - bash scripts/17-web-static.sh 2>&1 | tee {{.LOG}}-web-static.log
+
+  web:static:front:
+    desc: "Recompila só o front por cima do snapshot já congelado em dist/"
+    cmds:
+      - bash scripts/17-web-static.sh --front-only 2>&1 | tee {{.LOG}}-web-static-front.log
+
+  web:static:check:
+    desc: "Canário do dist/ publicável: percorre as 5 abas num Chrome headless"
+    cmds:
+      - bash scripts/19-web-static-check.sh {{.CLI_ARGS}} 2>&1 | tee {{.LOG}}-web-static-check.log
+
+  web:publish:
+    desc: "Publica dist/ no Cloudflare Pages em retrieval.andrebassi.com.br"
+    cmds:
+      - bash scripts/18-web-publish.sh 2>&1 | tee {{.LOG}}-web-publish.log
+
+  opensource:split:
+    desc: "Extrai o histórico da PoC do monorepo para branch própria (não empurra)"
+    cmds:
+      - bash scripts/16-opensource-split.sh 2>&1 | tee {{.LOG}}-opensource-split.log
+
   query:
     desc: 'Uma consulta em todas as estratégias — task query -- "P-101 aquecendo"'
     cmds:

@@ -631,6 +631,49 @@ pre,
   font-weight: 600;
 }
 
+/* Endereço do código, logo abaixo da ficha técnica. Fonte de código de propósito:
+   é para ser reconhecido como endereço de repositório de relance, não lido como
+   frase. */
+.poc-source {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 8px 0 0;
+}
+
+.poc-source a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Aviso do modo publicado. Só aparece no build de snapshot, e por isso a cor de
+   alerta é justificada: não é decoração recorrente, é a única linha da tela que
+   fala de uma limitação real do que está sendo mostrado.
+   `align-items: start` porque o texto quebra em duas ou três linhas em janela
+   estreita, e o ícone tem que ficar na primeira — centralizado, ele desce para o
+   meio do parágrafo e deixa de apontar para o começo do aviso. */
+.poc-frozen {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--mid) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mid) 35%, transparent);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 10px 0 0;
+  max-width: 76ch;
+}
+
+.poc-frozen svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--mid);
+}
+
 /* Explicação da opção, dobrada dentro do cartão. Fechada por padrão: seis
    cartões abertos empurrariam o resultado — que é o que a pessoa veio ver —
    para baixo da dobra. */
