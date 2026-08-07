@@ -23,6 +23,7 @@ import { useMemo } from "react";
 
 import { fetchAdvice } from "./api.js";
 import { Failed, Loading, useAsync } from "./common.jsx";
+import { ms, pct } from "./format.js";
 
 // O cenário mais comum de verdade: alguém clicou em buscar, lê o primeiro
 // resultado, e as perguntas misturam código com descrição.
@@ -50,9 +51,6 @@ const SHORT = {
   conceptual: "descrição livre",
   hybrid: "os dois juntos",
 };
-
-const pct = (value) => `${(value * 100).toFixed(1)}%`;
-const ms = (value) => `${value.toFixed(1)} ms`;
 
 /** Seletor de uma escolha do cenário.
  *

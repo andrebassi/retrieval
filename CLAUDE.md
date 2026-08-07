@@ -78,9 +78,11 @@ src/retrieval_poc/
 └── cli.py              subcomandos, um por etapa do pipeline
 
 frontend/               React 19 + Vite 6 + @cloudflare/kumo — fonte da tela
-│   └── src/Advice.jsx  a aba “Qual devo usar?”: cartão da campeã + lista das
-│                       outras cinco. NÃO calcula nota, nem desempate, nem frase —
-│                       tudo vem pronto de /api/advice (inclusive `verdict`)
+│   ├── src/Advice.jsx  a aba “Qual devo usar?”: cartão da campeã + lista das
+│   │                   outras cinco. NÃO calcula nota, nem desempate, nem frase —
+│   │                   tudo vem pronto de /api/advice (inclusive `verdict`)
+│   └── src/format.js   vírgula decimal — par do `fmt_number()` do app.py, para os
+│                       campos que chegam como número cru e viram texto só aqui
 tools/web_check.py      canário do front, sem browser
 ```
 
@@ -112,7 +114,7 @@ task query -- "P-101 aquecendo acima do normal"
 task web:build         # compila o front para src/retrieval_poc/web/static
 task web               # tela em http://127.0.0.1:8081 (compila se faltar bundle)
 task web:restart       # reinicia em segundo plano e espera o 200 — o servidor NÃO tem reload
-task web:check         # CANÁRIO do front — 147 asserções, 10 seções, sem browser
+task web:check         # CANÁRIO do front — 148 asserções, 10 seções, sem browser
 task web:shots         # 10 prints (exige 'task web' de pé); falha se algum sair em branco
 task clean             # apaga corpus e resultados, mantém o banco
 ```
@@ -168,6 +170,19 @@ task "passa".
 | 41 | `Palavra · simples · Palavra · com peso saem` lê como **quatro** nomes | o rótulo curto já usa `·` como separador interno (armadilha 30), e a legenda juntava as eliminadas com o mesmo `·` | juntar com `e` quando são duas; com três ou mais, dizer a **contagem** — nomear todas estoura a linha única, e quem saiu está em vermelho no placar logo acima |
 | 42 | O pódio exibe `rrf 100,0%`, `weighted 100,0%`, `ts_rank 100,0%` lado a lado — e **dois dos três já estavam eliminados** | `eliminated` significava "estourou o tempo", e o `podium` filtrava por ele. Quem cai no mata-mata seguia verde, com a nota inteira. O remendo da armadilha 38 escondeu isso por uma rodada inteira: a tela ficava certa **na cena**, e o payload seguia errado | marcar no **back-end**: `eliminated` = fora por qualquer motivo, `out_at` ∈ `{budget, tiebreak}` diz por qual, `podium` sai do payload. A marcação entra **depois** do `sort` final — antes, ela reordenaria as contendoras e quebraria a armadilha 24. Asserção nova cruza `tiebreak` com `ranked`; verificada invertendo: anulada a marcação, o canário acusa **23 dos 27 cenários** |
 | 43 | Formato errado sobrevive porque "está bonito" | a aba virou vídeo Remotion de 8 capítulos (armadilhas 35–37, 40, 41) para resolver a rolagem — e resolveu. Só que **ninguém assiste 20 a 34 s para saber qual estratégia usar**, e o palco de 800×450 num viewport de 1440×900 é espaço morto. A quantidade de trabalho investida no vídeo não o tornou a resposta certa | cartão + lista: escolhe as três opções e a resposta aparece. `remotion` + `@remotion/player` fora (−267 016 B de JS crus, −83 361 B gzipados, medido). As armadilhas 35–37, 40 e 41 continuam valendo como diagnóstico; o código que elas citam (`scenes.js`, `Tournament.jsx`, `.poc-vid-stage`) não existe mais |
+| 44 | A tela diz `acerta 100.0%` e o README diz `100,0%` — mesmo número, dois idiomas. Sobreviveu a **147 asserções verdes** | `f"{x:.1f}"` e `toFixed(1)` devolvem ponto decimal, e em pt-BR ponto é separador de milhar: `4.339` na coluna PESO lê como quatro mil. Todas as 147 asserções conferiam **aritmética** (a nota bate? o desempate fecha?) e nenhuma conferia a **forma** do número. Quem viu foi o usuário, não o canário — e o IDF só apareceu **olhando o PNG**, porque nenhuma asserção alcança o que o front renderiza a partir de campo numérico | `fmt_number()` no `app.py` (a frase inteira nasce no back-end) e `format.js` no front (`num`/`pct`/`ms`/`decimal`) para os campos que chegam crus. Asserção nova varre **só as strings** do payload procurando `\d+\.\d` — os campos numéricos seguem com ponto de propósito, senão deixam de ser número. Verificada invertendo: reposto um `:.1f`, o canário acusa `'2 empataram em 100.0%'` |
+
+**A divisão que a armadilha 44 fixa** — vírgula é para número que alguém **lê**;
+ponto sobrevive em dois lugares, e os dois de propósito:
+
+| Fica com ponto | Por quê |
+|---|---|
+| valor de parâmetro (`k1=1.2`, `b=0.75`, `RRF k=60`, pesos `[1.0, 1.0]`) | é cópia literal do `config.py`; trocar faria a tela discordar da configuração que ela declara usar |
+| conteúdo literal de coluna (`vector_preview`, `[0.0205, −0.0006, …]`) | é a linha do banco, não uma medida para o visitante |
+| campo numérico do JSON (`value`, `p50`, `band`) | quem formata é o `format.js`; vírgula no payload quebraria o `toFixed` |
+
+`toLocaleString("pt-BR")` foi descartado: insere separador de milhar, e a única
+medida grande da tela é milissegundo — `1.234,5 ms` só atrapalha.
 
 ## Como interpretar os resultados
 

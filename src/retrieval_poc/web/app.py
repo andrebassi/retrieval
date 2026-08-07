@@ -36,6 +36,26 @@ from .code_tour import TOUR, tour_for
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+
+def fmt_number(value: float, digits: int = 1) -> str:
+    """Número para LER, com vírgula decimal — a tela inteira é em pt-BR.
+
+    `f"{x:.1f}"` devolve `100.0`, que numa frase portuguesa lê como outra coisa:
+    em pt-BR o ponto é separador de milhar. A tela dizia `acerta 100.0%` ao lado
+    de um README que diz `100,0%`, e os dois números são o mesmo.
+
+    Fica aqui, e não no front, porque a frase inteira nasce aqui: `verdict`,
+    `why`, `reason` e as legendas chegam prontas do back-end (é o que impede o
+    cartão de divergir do texto ao lado). Formatar no front resolveria metade —
+    a metade que o front desenha — e deixaria a outra metade em inglês.
+
+    NÃO vale para o rodapé técnico (`k1=1.2`, `b=0.75`): ali o número é **valor
+    de parâmetro** copiado da configuração, e trocar o separador faria a tela
+    discordar do que está escrito no `config.py`.
+    """
+    return f"{value:.{digits}f}".replace(".", ",")
+
+
 # Nome de tela em pt-BR na frente; o identificador técnico vai no rodapé do
 # cartão. Quem não é da área não lê `ts_rank_cd` como "a busca do Postgres".
 STRATEGY_LABEL = {
@@ -54,10 +74,16 @@ STRATEGY_LABEL = {
 # com o mesmo texto e notas diferentes é pior que nome nenhum — quem lê acha que
 # a tela repetiu a mesma estratégia. O `·` separa o que era vírgula porque o
 # corte por reticências costumava cair exatamente nela.
+#
+# Os três primeiros abrem com **“Por …”** por causa do cartão da resposta: ali o
+# nome aparece grande, sozinho, sob a palavra "use". "Significado" naquele lugar
+# lê como rótulo de campo — o visitante pergunta "significado de quê?" em vez de
+# ler o nome de uma busca. A preposição custa quatro caracteres e diz que aquilo
+# é o *critério* pelo qual se procura, não um cabeçalho.
 STRATEGY_SHORT = {
-    "dense": "Significado",
-    "ts_rank": "Palavra · simples",
-    "bm25": "Palavra · com peso",
+    "dense": "Por significado",
+    "ts_rank": "Por palavra · simples",
+    "bm25": "Por palavra · com peso",
     "weighted": "Duas juntas · notas",
     "rrf": "Duas juntas · posições",
     "rrf_rerank": "Duas juntas + revisor",
@@ -617,7 +643,7 @@ def _round_reader(rows: list[dict], reader: dict) -> dict:
     else:
         headline = (
             f"Apertando a régua para “{reader['metric_label']}”, "
-            f"“{hardest['label']}” é quem mais sofre: cai {hardest['drop']:.1f} pontos "
+            f"“{hardest['label']}” é quem mais sofre: cai {fmt_number(hardest['drop'])} pontos "
             f"em relação a olhar os dez. O placar se remonta inteiro."
         )
     # A mesma notícia em uma linha, para o vídeo.
@@ -639,7 +665,7 @@ def _round_reader(rows: list[dict], reader: dict) -> dict:
     elif hardest["drop"] <= 0:
         caption = "Ninguém perde nota com esta régua"
     else:
-        caption = f"{STRATEGY_SHORT[hardest['name']]} perde {hardest['drop']:.1f} pontos"
+        caption = f"{STRATEGY_SHORT[hardest['name']]} perde {fmt_number(hardest['drop'])} pontos"
     return {
         "metric": metric,
         "board": board,
@@ -689,7 +715,7 @@ def _round_budget(rows: list[dict], reader: dict, budget: dict) -> dict:
             "p50": p50,
             "eliminated": eliminated,
             "reason": (
-                f"leva {p50:.1f} ms, e o limite é {budget['ms']:.0f} ms" if eliminated else ""
+                f"leva {fmt_number(p50)} ms, e o limite é {fmt_number(budget['ms'], 0)} ms" if eliminated else ""
             ),
         }
         (out if eliminated else alive).append(item)
@@ -697,17 +723,17 @@ def _round_budget(rows: list[dict], reader: dict, budget: dict) -> dict:
 
     if not out:
         headline = (
-            f"Com {budget['ms']:.0f} ms de folga, as {len(rows)} continuam na mesa. "
+            f"Com {fmt_number(budget['ms'], 0)} ms de folga, as {len(rows)} continuam na mesa. "
             "Esta pergunta não elimina ninguém — ela só deixa de eliminar."
         )
     elif not alive:
-        headline = f"Nenhuma das {len(rows)} responde em até {budget['ms']:.0f} ms."
+        headline = f"Nenhuma das {len(rows)} responde em até {fmt_number(budget['ms'], 0)} ms."
     else:
         best_out = max(out, key=lambda item: item["value"])
         headline = (
             f"{len(out)} de {len(rows)} saem da mesa por tempo, sem a nota ter sido "
             f"olhada — inclusive “{best_out['label']}”, que acerta "
-            f"{best_out['value'] * 100:.1f}%. Nota alta não salva de estourar o relógio."
+            f"{fmt_number(best_out['value'] * 100)}%. Nota alta não salva de estourar o relógio."
         )
     # Eliminadas embaixo, e ordenadas por tempo: o placar conta a história de
     # cima para baixo, e quem saiu fica visível — some da disputa, não da tela.
@@ -716,15 +742,15 @@ def _round_budget(rows: list[dict], reader: dict, budget: dict) -> dict:
     # os dois desenham a mesma eliminação, e ordens diferentes fazem a lista de
     # quem caiu contradizer as linhas riscadas logo ao lado. Pego pelo canário.
     if not out:
-        caption = f"Ninguém sai — {budget['ms']:.0f} ms é folga para as {len(rows)}"
+        caption = f"Ninguém sai — {fmt_number(budget['ms'], 0)} ms é folga para as {len(rows)}"
     elif not alive:
-        caption = f"As {len(rows)} estouram {budget['ms']:.0f} ms"
+        caption = f"As {len(rows)} estouram {fmt_number(budget['ms'], 0)} ms"
     elif len(out) == 1:
         # Uma só: dizer QUAL saiu vale mais que dizer que saiu uma — e ainda
         # resolve a concordância, que “1 saem por tempo” quebrava na tela.
-        caption = f"{STRATEGY_SHORT[out[0]['name']]} sai — estourou {budget['ms']:.0f} ms"
+        caption = f"{STRATEGY_SHORT[out[0]['name']]} sai — estourou {fmt_number(budget['ms'], 0)} ms"
     else:
-        caption = f"{len(out)} saem por tempo — o limite é {budget['ms']:.0f} ms"
+        caption = f"{len(out)} saem por tempo — o limite é {fmt_number(budget['ms'], 0)} ms"
     return {
         "ms": budget["ms"],
         "board": sorted(alive + out, key=lambda item: seats[item["name"]]),
@@ -776,7 +802,7 @@ def _tiebreak_out_reason(criterion_id: str, row: dict, winner: dict) -> str:
         )
     if criterion_id == "tuning":
         return "precisa de peso e escala calibrados neste acervo"
-    return f"leva {row['p50']:.1f} ms, contra {winner['p50']:.1f} ms de quem passou"
+    return f"leva {fmt_number(row['p50'])} ms, contra {fmt_number(winner['p50'])} ms de quem passou"
 
 
 def _tiebreak_steps(contenders: list[dict]) -> list[dict]:
@@ -844,7 +870,7 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
                 "tuning_free": STRATEGY_TRAIT[row["strategy"]]["tuning_free"],
                 "eliminated": p50 > budget_ms,
                 "reason": (
-                    f"leva {p50:.1f} ms, acima do limite de {budget_ms:.0f} ms"
+                    f"leva {fmt_number(p50)} ms, acima do limite de {fmt_number(budget_ms, 0)} ms"
                     if p50 > budget_ms
                     else ""
                 ),
@@ -867,17 +893,17 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             "tied": [],
             "ranked": ranked,
             "pipeline": [],
-            "why": f"Nenhuma das seis responde em até {budget_ms:.0f} ms neste tipo de pergunta.",
-            "verdict": [f"Nenhuma responde em até {budget_ms:.0f} ms neste tipo de pergunta"],
+            "why": f"Nenhuma das seis responde em até {fmt_number(budget_ms, 0)} ms neste tipo de pergunta.",
+            "verdict": [f"Nenhuma responde em até {fmt_number(budget_ms, 0)} ms neste tipo de pergunta"],
             "notes": [],
             "tiebreak": [],
             "moved": [],
             "swap": (
-                f"Não sobrou ninguém para trocar de lugar: o limite de {budget_ms:.0f} ms "
+                f"Não sobrou ninguém para trocar de lugar: o limite de {fmt_number(budget_ms, 0)} ms "
                 "tirou as seis da mesa na rodada anterior."
             ),
-            "swap_caption": f"Ninguém sobrou: {budget_ms:.0f} ms tirou as seis",
-            "why_caption": f"Sem campeã — nenhuma responde em {budget_ms:.0f} ms",
+            "swap_caption": f"Ninguém sobrou: {fmt_number(budget_ms, 0)} ms tirou as seis",
+            "why_caption": f"Sem campeã — nenhuma responde em {fmt_number(budget_ms, 0)} ms",
         }
 
     # Dentro da faixa de uma pergunta **não existe ordem por nota** — declarar
@@ -969,8 +995,8 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             reasons.append("não tem nada para calibrar")
             short_reasons.append("não tem nada para calibrar")
         if winner["p50"] < min(row["p50"] for row in losers):
-            reasons.append(f"responde em {winner['p50']:.1f} ms, o menor tempo entre elas")
-            short_reasons.append(f"é a mais rápida ({winner['p50']:.1f} ms)")
+            reasons.append(f"responde em {fmt_number(winner['p50'])} ms, o menor tempo entre elas")
+            short_reasons.append(f"é a mais rápida ({fmt_number(winner['p50'])} ms)")
         # Enumeração com “e” antes da última, e cada nome entre aspas: quatro
         # nomes longos separados só por vírgula viram uma frase que ninguém
         # termina de ler — “empata com As duas juntas, somando notas, Busca por
@@ -978,7 +1004,7 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         names = [f"“{STRATEGY_LABEL[name]}”" for name in tied if name != winner["name"]]
         others = names[0] if len(names) == 1 else ", ".join(names[:-1]) + f" e {names[-1]}"
         why = (
-            f"“{winner['label']}” acerta {winner['value'] * 100:.1f}% e empata com "
+            f"“{winner['label']}” acerta {fmt_number(winner['value'] * 100)}% e empata com "
             f"{others}: a diferença entre elas cabe dentro de uma pergunta. "
         )
         why += (
@@ -990,25 +1016,25 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         # do que já existe (`tied`, `value`, `short_reasons`) — nenhum número
         # novo nasce aqui, e por isso não há como divergir do `why` logo ao lado.
         verdict = [
-            f"{len(tied)} empataram em {winner['value'] * 100:.1f}%",
+            f"{len(tied)} empataram em {fmt_number(winner['value'] * 100)}%",
             f"Ganhou porque {short_reasons[0]}"
             if short_reasons
             else "Ganhou por ordem de listagem: nenhum critério as separou",
         ]
     else:
         second = next((row for row in eligible if row["name"] != winner["name"]), None)
-        why = f"“{winner['label']}” acerta {winner['value'] * 100:.1f}%"
+        why = f"“{winner['label']}” acerta {fmt_number(winner['value'] * 100)}%"
         if second:
             why += (
-                f", contra {second['value'] * 100:.1f}% da segunda colocada "
+                f", contra {fmt_number(second['value'] * 100)}% da segunda colocada "
                 f"(“{second['label']}”)"
             )
-        why += f", e responde em {winner['p50']:.1f} ms."
+        why += f", e responde em {fmt_number(winner['p50'])} ms."
         verdict = ["Ganhou sozinha, sem empate"]
         if second:
             verdict.append(
-                f"{winner['value'] * 100:.1f}% contra "
-                f"{second['value'] * 100:.1f}% da segunda"
+                f"{fmt_number(winner['value'] * 100)}% contra "
+                f"{fmt_number(second['value'] * 100)}% da segunda"
             )
 
     notes = []
@@ -1030,7 +1056,7 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         if rerank["hit_at_10"] < fusion["hit_at_10"]:
             notes.append(
                 f"O revisor derruba o “apareceu entre os dez” de "
-                f"{fusion['hit_at_10'] * 100:.1f}% para {rerank['hit_at_10'] * 100:.1f}%: "
+                f"{fmt_number(fusion['hit_at_10'] * 100)}% para {fmt_number(rerank['hit_at_10'] * 100)}%: "
                 "ele reordena os 20 primeiros e às vezes empurra o certo para fora "
                 "da lista curta. Se um dia esses dez forem para um modelo ler, "
                 "esta escolha muda."
@@ -1068,15 +1094,15 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         if delta > 0:
             swap = (
                 f"A mesa virou: “{worst['label']}” cai do {worst['from']}º para o "
-                f"{worst['to']}º lugar e perde {delta:.1f} pontos — "
-                f"{worst['was'] * 100:.1f}% na média, {worst['value'] * 100:.1f}% neste "
+                f"{worst['to']}º lugar e perde {fmt_number(delta)} pontos — "
+                f"{fmt_number(worst['was'] * 100)}% na média, {fmt_number(worst['value'] * 100)}% neste "
                 "tipo de pergunta. É exatamente isso que a tabela geral esconde."
             )
         else:
             best = max(moved, key=lambda item: item["value"] - item["was"])
             swap = (
                 f"{len(moved)} trocam de lugar, e ninguém piora: “{best['label']}” sobe do "
-                f"{best['from']}º para o {best['to']}º com {best['value'] * 100:.1f}% "
+                f"{best['from']}º para o {best['to']}º com {fmt_number(best['value'] * 100)}% "
                 "neste tipo de pergunta."
             )
     else:
@@ -1091,7 +1117,7 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         delta = (worst["was"] - worst["value"]) * 100
         swap_caption = (
             f"{STRATEGY_SHORT[worst['name']]} cai do {worst['from']}º ao {worst['to']}º — "
-            f"perde {delta:.1f} pontos"
+            f"perde {fmt_number(delta)} pontos"
             if delta > 0
             else f"{len(moved)} trocam de lugar, e ninguém piora"
         )

@@ -721,8 +721,8 @@ Decisões que valem registro:
 - **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
   `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
   precisa de Node — precisa do bundle, que já está no lugar. Medido nesta rodada:
-  `index.html` 554 B (368 B gzip), CSS 135 180 B (22 058 B gzip), JS 246 054 B
-  (75 786 B gzip). É a quarta medição deste mesmo bullet, e a primeira em que o
+  `index.html` 554 B (372 B gzip), CSS 135 180 B (22 231 B gzip), JS 246 059 B
+  (75 949 B gzip). É a quarta medição deste mesmo bullet, e a primeira em que o
   número **cai**: tirar o `remotion` + `@remotion/player` devolveu **−266 918 B
   de JS crus** e **−83 387 B gzipados** contra os 512 972 B (159 173 B) da versão
   em vídeo — o JS voltou a ser menor do que era antes do Remotion entrar
@@ -776,13 +776,13 @@ e uma ou duas frases dizendo o que decidiu. Abaixo, as outras cinco.
 ┌──────────────────────────────────────────────────────────┐
 │  USE                                                     │
 │  Duas juntas · posições                                  │
-│  acerta 100.0% · responde em 119.7 ms                    │
-│  4 empataram em 100.0%                                   │
+│  acerta 100,0% · responde em 119,7 ms                    │
+│  4 empataram em 100,0%                                   │
 │  Ganhou porque não tem nada para calibrar                │
 ├──────────────────────────────────────────────────────────┤
-│  Duas juntas · notas   FORA  precisa de peso e escala…   │
-│  Palavra · simples     FORA  devolve lista curta em 3…   │
-│  Significado          90.9%  116.3 ms                    │
+│  Duas juntas · notas    FORA  precisa de peso e escala…  │
+│  Por palavra · simples  FORA  devolve lista curta em 3…  │
+│  Por significado       90,9%  116,3 ms                   │
 └──────────────────────────────────────────────────────────┘
 ```
 
@@ -852,7 +852,7 @@ roupa nova.
 ### O terceiro canário: a tela também mente ✅ medido
 
 Tela é a parte que ninguém testa — abre bonita e mente calada. `task web:check`
-faz **147 asserções** em 10 seções contra o servidor no ar, sem browser, e não
+faz **148 asserções** em 10 seções contra o servidor no ar, sem browser, e não
 aborta na primeira falha (uma rodada mostra tudo que está quebrado). Ele pega
 três coisas que passam por qualquer olhada:
 
@@ -900,7 +900,7 @@ E ele deixou passar coisa pior: uma prop indefinida (`explain`, passada ao
 componente errado) derrubou o render da **aba inteira**. O canário seguiu com
 `erros: 0` — o servidor estava íntegro, quem quebrou foi o JS depois do 200 —, e
 o defeito só apareceu porque o print da aba de busca saiu **em branco**. O sinal
-barato disso é o tamanho do arquivo: o menor PNG desta tela tem 121 843 B
+barato disso é o tamanho do arquivo: o menor PNG desta tela tem 123 794 B
 (`advice-sem-empate`) e o branco deu 10 979 B — uma ordem de grandeza de folga.
 Por isso `task web:shots` hoje falha (`rc=1`) quando um print fica abaixo de
 60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000` ele acusa **8 dos
@@ -970,7 +970,7 @@ tools/check_readme.py          canário da documentação (fora do pacote: não 
 tools/web_check.py             parte da PoC, é quem audita a PoC — texto e tela)
 ```
 
-**3 513 linhas de Python** em `src/`, 2 013 de front em `frontend/src/`,
+**3 539 linhas de Python** em `src/`, 2 107 de front em `frontend/src/`,
 16 scripts numerados em `scripts/` (`00-setup` a `15-web-restart`), e um
 `Taskfile.yaml` que chama script — nunca comando ad-hoc.
 

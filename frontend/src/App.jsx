@@ -38,6 +38,7 @@ import {
   fetchState,
 } from "./api.js";
 import { Failed, Loading, useAsync } from "./common.jsx";
+import { decimal, ms, num, pct } from "./format.js";
 import { AdviceTab, DEFAULT_SCENARIO } from "./Advice.jsx";
 
 // A recomendação vem primeiro e é a aba de entrada. A pergunta que sobrou
@@ -315,7 +316,7 @@ function SearchResults({ data, strategies, explain, onPickDocument, onShowCode }
 
               <p className="poc-metrics">
                 <span title="tempo que esta busca levou para responder">
-                  <Timer size={14} weight="bold" /> {result.ms} ms
+                  <Timer size={14} weight="bold" /> {ms(result.ms)}
                 </span>
                 <span
                   className={result.starved ? "poc-danger" : ""}
@@ -353,7 +354,7 @@ function SearchResults({ data, strategies, explain, onPickDocument, onShowCode }
                         title="Nota dada por esta busca. Só vale para comparar dentro desta coluna — cada forma de buscar pontua na sua própria escala."
                       >
                         <code>{hit.doc_id}</code> · {KIND_NAME[hit.kind] ?? hit.kind} · nota{" "}
-                        {hit.score}
+                        {decimal(hit.score)}
                       </span>
                       <ScoreBar value={hit.score} max={max} />
                     </button>
@@ -464,7 +465,7 @@ function DocumentTab({ state, docId, onPickDocument }) {
                     <td>{row.tf}</td>
                     <td>{row.df}</td>
                     <td>
-                      {row.idf}
+                      {decimal(row.idf)}
                       <ScoreBar value={row.idf} max={maxIdf} />
                     </td>
                   </tr>
@@ -541,7 +542,10 @@ function ScoreTab({ labels }) {
   // `%` em vez de 0,8108: quem lê a tela quer saber que acertou 8 de cada 10,
   // não a fração. Os quatro decimais continuam no `results/evaluation.json`,
   // que é a fonte para quem for conferir.
-  const pct = (value) => (value == null ? "—" : `${(value * 100).toFixed(1)}%`);
+  //
+  // O traço para `null` é local, e por isso não desce para o `format.js`: só
+  // esta tabela tem célula vazia (uma estratégia sem gabarito não tem hit@k).
+  const cell = (value) => (value == null ? "—" : pct(value));
 
   return (
     <>
@@ -606,12 +610,12 @@ function ScoreTab({ labels }) {
                   <code>{row.strategy}</code> — {row.description}
                 </span>
               </td>
-              <td>{pct(row.hit_at_1)}</td>
-              <td>{pct(row.hit_at_3)}</td>
-              <td>{pct(row.hit_at_10)}</td>
-              <td>{row.mrr?.toFixed(2)}</td>
-              <td>{row.query_ms_p50?.toFixed(1)} ms</td>
-              <td>{row.query_ms_p95?.toFixed(1)} ms</td>
+              <td>{cell(row.hit_at_1)}</td>
+              <td>{cell(row.hit_at_3)}</td>
+              <td>{cell(row.hit_at_10)}</td>
+              <td>{row.mrr == null ? "—" : num(row.mrr, 2)}</td>
+              <td>{row.query_ms_p50 == null ? "—" : ms(row.query_ms_p50)}</td>
+              <td>{row.query_ms_p95 == null ? "—" : ms(row.query_ms_p95)}</td>
               <td className={row.starved_queries > 0 ? "poc-danger" : ""}>
                 {row.starved_queries}
               </td>

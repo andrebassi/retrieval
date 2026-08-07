@@ -449,5 +449,38 @@ if advice:
     )
     require(not plural_slips, f"nenhuma frase com “1” seguido de verbo no plural ({len(plural_slips)} achadas)")
 
+    # Decimal com PONTO numa tela em pt-BR. `f"{x:.1f}"` devolve `100.0`, e a
+    # frase saía “acerta 100.0%” ao lado de um README que diz `100,0%` — mesmo
+    # número, dois idiomas. Quem viu foi o usuário, não o canário: as 147
+    # asserções conferiam a aritmética e nenhuma olhava a **forma** do número.
+    #
+    # Só os valores string entram na varredura. Os campos numéricos (`value`,
+    # `p50`, `band`) são JSON e continuam com ponto de propósito: quem formata
+    # eles é o `format.js`, e trocar o separador no payload faria o número
+    # deixar de ser número.
+    #
+    # A exceção são os parâmetros de configuração (`k1=1.2`, `b=0.75`), onde o
+    # ponto é o valor literal escrito no `config.py` — trocar ali faria a tela
+    # discordar da configuração que ela declara estar usando.
+    def strings_in(node, path="") -> list[tuple[str, str]]:
+        if isinstance(node, str):
+            return [(path, node)]
+        if isinstance(node, dict):
+            return [x for k, v in node.items() for x in strings_in(v, f"{path}.{k}")]
+        if isinstance(node, list):
+            return [x for i, v in enumerate(node) for x in strings_in(v, f"{path}[{i}]")]
+        return []
+
+    dot_decimal = [
+        (path, text)
+        for path, text in strings_in(advice)
+        if re.search(r"(?<![=\w])\d+\.\d", text)
+    ]
+    require(
+        not dot_decimal,
+        "nenhum decimal com ponto no texto do payload"
+        + (f" — {dot_decimal[0][0]}: {dot_decimal[0][1]!r}" if dot_decimal else ""),
+    )
+
 print(f"\n== erros: {errors} ==")
 sys.exit(1 if errors else 0)
