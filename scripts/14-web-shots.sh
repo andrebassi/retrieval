@@ -73,6 +73,25 @@ shot passo-resposta  "?step=4"                  "$WIZARD_H"
 # pegaria o cenário inicial e a parte interativa da aba ficaria sem prova
 # nenhuma: este print tem que mostrar OUTRA vencedora que o `passo-resposta`.
 shot recomendacao-llm "?reader=llm&budget=patient&kind=conceptual&step=4" "$WIZARD_H"
+# Os cinco abaixo cobrem os ramos do jogo que o cenário de entrada NÃO passa. Cada
+# um existe porque o código que ele desenha só roda naquele cenário — e código de
+# tela que nunca é fotografado é código que quebra sem ninguém ver.
+#
+# Corte em massa: o relógio de 5 ms derruba 4 das 6 e o placar fica com quatro
+# linhas riscadas. Nos outros orçamentos cai 1 ou nenhuma, então o desenho da
+# eliminação em bloco não apareceria em print nenhum.
+shot jogo-corte        "?reader=first&budget=instant&step=2" "$WIZARD_H"
+# Seis trocam de lugar — é o cenário em que a lista de de-para tem o que mostrar.
+shot jogo-trocas       "?reader=first&budget=instant&kind=literal&step=3" "$WIZARD_H"
+# E o oposto: ninguém troca. A tela diz isso com todas as letras em vez de ficar
+# muda, e é um ramo diferente do mesmo passo.
+shot jogo-sem-trocas   "?reader=llm&budget=click&kind=literal&step=3" "$WIZARD_H"
+# O mata-mata com as três etapas abertas. 1100 px porque aqui a altura da página
+# é o conteúdo — cortar em 900 esconderia justamente a etapa que decide.
+shot jogo-mata-mata    "?reader=first&budget=instant&kind=literal&step=4" 1100
+# Vencedora sem empate: nenhum mata-mata, e a tela precisa explicar a ausência.
+# Sem este print, o texto do caso "a nota decidiu sozinha" nunca é conferido.
+shot jogo-sem-empate   "?reader=first&budget=click&kind=conceptual&step=4" "$WIZARD_H"
 shot busca        "?tab=search"                 1700
 shot documento    "?tab=document&doc=ch_5506"   1500
 shot placar       "?tab=score"                  1000

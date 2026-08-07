@@ -536,8 +536,8 @@ Esta tabela é estática e cabe em três linhas de resumo: **comece pela fusão 
 posição** (`rrf`), **ligue o revisor** (`rrf_rerank`) só quando o primeiro
 resultado for o que a pessoa lê, e **nunca use o denso sozinho**. Quem quiser a
 mesma decisão para o *seu* caso, com os 27 cenários calculados sobre os mesmos
-números medidos, responde três perguntas na aba **“Qual devo usar?”** do
-`task web` — descrita em [A tela](#a-tela).
+números medidos, joga o torneio de 4 rodadas da aba **“Qual devo usar?”** do
+`task web` — descrito em [A tela](#a-tela).
 
 ---
 
@@ -668,7 +668,8 @@ marcado em cada resultado.
 task web:build    # compila o front para dentro do pacote Python
 task web          # http://127.0.0.1:8081 (compila sozinho se faltar o bundle)
 task web:check    # CANÁRIO do front — todas as rotas e o bundle, sem browser
-task web:shots    # dez prints (exige 'task web' de pé)
+task web:shots    # quinze prints (exige 'task web' de pé)
+task web:restart  # rebuild não basta: o servidor sobe sem reload
 ```
 
 Cinco abas, cada uma respondendo a uma pergunta diferente. A primeira é a de
@@ -676,24 +677,34 @@ entrada, e responde a pergunta que sobra depois de ler a tabela inteira:
 
 | Aba | Responde |
 |---|---|
-| **Qual devo usar?** | assistente de 4 passos: quem lê o resultado, quanto tempo dá para esperar, como são as perguntas — e o resultado. Cada passo desenha a consequência da resposta (a lista até onde alguém olha, a régua de tempo com quem sai da disputa, o mesmo trio de barras por tipo de pergunta), e o último recalcula a vencedora nos números medidos, com a faixa de empate desenhada e o caminho a montar |
+| **Qual devo usar?** | torneio de 4 rodadas com **placar ao vivo**: as seis entram como competidoras e ficam na tela o tempo todo. A régua de leitura remonta as notas (r1), o relógio derruba quem estoura o orçamento (r2), o tipo de pergunta vira a mesa e a tela lista o de-para de quem subiu e desceu (r3), e o empate vai para um **mata-mata** de três critérios, etapa por etapa, até sobrar a campeã (r4) |
 | **Fazer uma pergunta** | as 6 estratégias sobre a mesma consulta, com acerto, latência e a marca de **voltou incompleta** quando devolveu menos que `k` |
 | **Como isso fica guardado** | o que existe no banco para um documento: lexemas com `tf`/`df`/IDF, as 24 primeiras dimensões do vetor e o texto indexado |
 | **Quem acerta mais** | a mesma tabela do `results/evaluation.json`, servida byte a byte — não recalculada |
 | **Onde elas discordam** | os 15 casos em que as estratégias divergem, com id, texto da consulta e o rank que cada uma deu |
 
 Cada aba tem **URL própria** (`?tab=score`, `?tab=document&doc=ch_5506`), e o
-assistente também, inclusive o passo em que ele está
+torneio também, inclusive a rodada em que ele está
 (`?reader=llm&budget=patient&kind=conceptual&step=4`). Não é enfeite: sem isso
 não existe link para uma aba nem para um cenário, e nenhuma ferramenta que
 fotografa a tela chega às outras quatro — foi o que dispensou um script de CDP
-com websocket só para clicar em botão. No assistente o `step` faz mais: cada
-passo desenha uma coisa diferente, então um print só provaria que o **primeiro**
-desenhou, e os outros três renderizariam num ramo que nunca teria sido olhado —
+com websocket só para clicar em botão. No torneio o `step` faz mais: cada rodada
+desenha uma coisa diferente, então um print só provaria que a **primeira**
+desenhou, e as outras três renderizariam num ramo que nunca teria sido olhado —
 por isso os prints `passo-tempo`, `passo-perguntas` e `passo-resposta`. É também
-o que permite provar por print que o assistente **muda de resposta**:
-`recomendacao` e `recomendacao-llm` são o mesmo componente com cenários
-diferentes, e recomendam estratégias diferentes.
+o que permite provar por print que o torneio **muda de campeã**: `recomendacao` e
+`recomendacao-llm` são o mesmo componente com cenários diferentes, e terminam em
+estratégias diferentes.
+
+Os **cinco prints do jogo** existem pelo mesmo motivo, um degrau abaixo: cada um
+desenha um ramo que o cenário de entrada não passa, e ramo de tela nunca
+fotografado é ramo que quebra sem ninguém ver. `jogo-corte` é o relógio de 5 ms
+derrubando 4 das 6 de uma vez (nos outros orçamentos cai uma ou nenhuma, e a
+eliminação em bloco não apareceria em print nenhum); `jogo-trocas` é a rodada 3
+com seis mudando de posição, e `jogo-sem-trocas` é a mesma rodada quando ninguém
+se move — a tela **diz** isso, em vez de ficar muda; `jogo-mata-mata` abre as três
+etapas do desempate; e `jogo-sem-empate` é o caso raro em que a nota decide
+sozinha e não há mata-mata para mostrar.
 
 **A tela fala com quem não é da área.** O nome de cada estratégia aparece em
 português (`dense` → "Busca por significado"), e cada cartão dobra uma explicação
@@ -708,11 +719,12 @@ Decisões que valem registro:
 - **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
   `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
   precisa de Node — precisa do bundle, que já está no lugar. Medido: `index.html`
-  554 B, CSS 144,99 kB (24,18 kB gzip), JS 401,43 kB (125,08 kB gzip). O salto de
-  252 kB para 401 kB no JS é o `motion` — as animações do assistente. Custa
-  47,4 kB gzip a mais, num arquivo servido da própria máquina; o que ele compra é
-  a régua de tempo e as barras crescendo, que é o que faz alguém entender o
-  empate sem ler a tabela.
+  554 B, CSS 147,67 kB (24,58 kB gzip), JS 415,60 kB (128,60 kB gzip). O salto de
+  252 kB para 415 kB no JS é o `motion` — as animações do torneio. Custa 50,9 kB
+  gzip a mais, num arquivo servido da própria máquina; o que ele compra é o
+  `layout` que reordena o placar sozinho (mede antes, mede depois, interpola), e
+  é ele que faz alguém **ver** o denso despencar quatro posições em vez de ler
+  que ele cai nas literais.
 - **A barra de pontuação normaliza dentro da coluna, nunca entre estratégias.**
   BM25 vai de 1,5 a 28; cosseno de 0,29 a 0,78; RRF são frações de 1/61. Uma
   escala comum faria a barra do RRF sumir e dar a impressão de que a fusão
@@ -725,7 +737,7 @@ Decisões que valem registro:
   ela poderia discordar do `REPORT.md` e ninguém notaria. O canário compara os
   dois byte a byte.
 
-### O escolhedor: a mesma decisão, calculada
+### O torneio: a mesma decisão, jogada
 
 A aba de entrada não opina — ela lê `results/evaluation.json` e resolve, para
 cada um dos **27 cenários** (3 leitores × 3 orçamentos de tempo × 3 tipos de
@@ -733,13 +745,31 @@ pergunta), qual estratégia recomendar. A aritmética inteira vive no back-end
 (`/api/advice`), pela mesma razão de sempre: existe **um** caminho de cálculo, e
 ele é testável pelo canário. O front só desenha.
 
+**A primeira versão era um assistente correto e morto**: três perguntas, resposta
+no fim. Quem respondia não via nada acontecer — e o que esta PoC tem de
+interessante é justamente que as seis trocam de lugar conforme a pergunta. Hoje
+as seis entram como competidoras e ficam no placar, à direita, o tempo inteiro:
+cada resposta mexe no placar **na frente de quem respondeu**, e a explicação vem
+junto do movimento, não depois dele.
+
+| Rodada | O que a resposta faz no placar |
+|---|---|
+| 1 · quem lê | troca a régua (hit@1 → hit@3 → hit@10) e **remonta as notas** — as barras crescem ou encolhem para a régua nova |
+| 2 · quanto dá para esperar | o relógio **risca da mesa** quem estoura o orçamento, com o motivo em cada linha (`383,2 ms · o limite é 5 ms`) |
+| 3 · que tipo de pergunta | vira a mesa: a nota deixa de ser a média das 37 e passa a ser a da família, e a tela lista o **de-para** de quem subiu e desceu (`Significado · 1º → 5º · 90,9% → 54,5%`) |
+| 4 · o resultado | quem ficou dentro da faixa de empate vai para o **mata-mata**: um critério por vez, quem passou, quem caiu e por quê, até sobrar uma. Termina em pódio |
+
+O mata-mata é o coração do "por que ela ganhou": a campeã quase nunca vence por
+acertar mais — ela vence **por critério de engenharia dentro de um empate que a
+nota não resolve**. Antes isso era uma frase de três linhas que ninguém lia.
+
 A regra tem três degraus, nesta ordem:
 
 1. **corta quem estoura o tempo** — `p50` acima do orçamento sai da disputa,
    mesmo acertando mais. Aparece na tela em cinza, com o motivo escrito;
 2. **acha a faixa de empate** — com 37 perguntas medidas, **uma** pergunta vale
    `1/37` = **2,7 pontos**. Quem estiver a menos disso da líder não está atrás:
-   está empatado, e a tela desenha a faixa listrada no fim da barra;
+   está empatado, e ganha o selo `empatada` no placar;
 3. **desempata por engenharia, não por nota** — dentro da faixa a nota não
    distingue nada, então vence quem (a) devolve a lista cheia, (b) não tem nada
    para calibrar, (c) responde mais rápido — nesta ordem.
@@ -762,19 +792,21 @@ ordem do desempate**. Ordenada por nota, ela colocava a `weighted` (117,8 ms) em
 1º e a vencedora `rrf` (119,7 ms) em 2º — na mesma tela que explica por que a
 `rrf` ganhou.
 
-**A animação carrega significado, não enfeite.** As barras crescem da esquerda
-(`transform: scaleX()` com origem à esquerda — `width` não anima em keyframe
-inline), o cartão da vencedora recebe uma varredura de luz, e a troca de cenário
-**remonta o bloco** (`key={cenário}`) justamente para replayar o crescimento: sem
-isso, mudar a resposta trocava os números em silêncio e ninguém percebia que a
-recomendação tinha virado outra. `prefers-reduced-motion: reduce` desliga o
-caminho e mantém o estado final — quem pediu menos movimento não pode perder
-informação.
+**A animação carrega significado, não enfeite.** No placar quem faz o trabalho é
+a prop `layout` do `motion`: ela mede a posição antes, mede depois e interpola —
+é FLIP, e é o que não dá para fazer à mão sem reimplementar FLIP. Sem ela a
+rodada 3 trocaria seis linhas de lugar num quadro só, e "as notas mudaram"
+deixaria de ser notícia; com ela, dá para **ver** o denso descer da 1ª para a 5ª.
+As etapas do mata-mata nascem escalonadas, e todas no DOM — não atrás de um botão
+"próximo", porque atrás do botão o print pega só a primeira, e texto que ninguém
+fotografa é texto que envelhece errado. `prefers-reduced-motion: reduce` desliga
+o caminho e mantém o estado final — quem pediu menos movimento não pode perder
+informação; é também o que torna os prints determinísticos (armadilha 27).
 
 ### O terceiro canário: a tela também mente ✅ medido
 
 Tela é a parte que ninguém testa — abre bonita e mente calada. `task web:check`
-faz **131 asserções** em 9 seções contra o servidor no ar, sem browser, e não
+faz **146 asserções** em 10 seções contra o servidor no ar, sem browser, e não
 aborta na primeira falha (uma rodada mostra tudo que está quebrado). Ele pega
 três coisas que passam por qualquer olhada:
 
@@ -786,12 +818,27 @@ três coisas que passam por qualquer olhada:
    `src`/`href` do HTML e exige 200;
 3. **número exibido divergindo do medido** — `/api/measured` × `results/*.json`.
 
-E ele já se pagou duas vezes, que é o teste que importa. Pegou um HTTP 500 em
+E ele já se pagou três vezes, que é o teste que importa. Pegou um HTTP 500 em
 `/api/document/proc_cip` — `'Vector' object is not iterable`, porque o
 `register_vector` do pgvector devolve um objeto que só entrega os números por
 `to_list()`. E acusou um `results/index_stats.json` que **não existe**: era um
 nome inventado no código do servidor, e o tamanho de índice já vinha medido do
 catálogo do Postgres.
+
+A terceira foi na estreia da seção 10 — as asserções do torneio pegaram, na
+primeira rodada, um defeito de produto em 3 das 9 combinações:
+
+```
+🛑 rodada 2 · first|instant [quem está riscado no placar não é quem está na lista de fora]
+```
+
+O placar saía na ordem dos assentos e a lista de eliminadas na ordem em que as
+linhas chegaram do `evaluation.json`. Os dois desenham **a mesma** eliminação, e
+ordens diferentes fazem a lista de quem caiu contradizer as linhas riscadas ao
+lado. Nenhuma asserção anterior via isso: cada estrutura estava certa sozinha, e
+o defeito só existe na relação entre as duas — que é o que a asserção nova
+compara. É também o padrão das armadilhas 23 e 24, pela terceira vez: **duas
+partes da tela contando a mesma história em ordens diferentes**.
 
 O que o canário **não** pega, e por isso `task web:shots` existe: a tela anunciou
 "26 operacionais + 88 da Wikipédia" onde o corpus tem 34 alvos e 80 distratores.
@@ -810,7 +857,20 @@ o defeito só apareceu porque o print da aba de busca saiu **em branco**. O sina
 barato disso é o tamanho do arquivo: os PNG desta tela nunca descem de 200 kB, e
 o branco deu 10 979 B. Por isso `task web:shots` hoje falha (`rc=1`) quando um
 print fica abaixo de 60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000`
-ele acusa três dos sete e sai != 0 — canário que nunca apita não está medindo.
+ele acusa **12 dos 15** e sai `rc=1` — canário que nunca apita não está medindo.
+
+E os prints continuam pegando o que nenhuma asserção pega. Cinco defeitos desta
+última rodada só apareceram **olhando o PNG**, todos com canário verde:
+
+| O que o print mostrou | Causa |
+|---|---|
+| o mata-mata cortado na 3ª etapa — some justamente a que decide | `height` fixo na moldura do passo. Fixa deixa os quatro passos do mesmo tamanho e a troca não dá salto, mas o passo 4 é o mais longo de todos e o excedente era cortado. `min-height` mantém a estabilidade e deixa o 4 crescer |
+| três linhas do placar com o **mesmo** nome, notas diferentes | o rótulo longo é cortado com reticências, e "As duas juntas, somando…" / "…por posição" / "…+ revisor" viravam todas o mesmo texto. Rótulo curto próprio (`STRATEGY_SHORT`), com `·` no lugar da vírgula — o corte caía exatamente nela |
+| selo `empatada` já na **rodada 1** | `tied` é conclusão da rodada 4: fala da nota do tipo de pergunta escolhido. Marcado antes, o selo dizia que duas empatam num número que nem é o do cenário |
+| faixa listrada de empate **invisível** | ela vale 2,7 pontos num track de 74 px = 2 px de listra. Decoração que ninguém enxerga fingindo ser informação — quem carrega o empate no placar é o selo, que é legível |
+| “a menos de 2,7 pontos” **quatro vezes** na mesma coluna | com quatro empatadas o mesmo texto repetido vira textura, não informação. O número é dito uma vez, no cabeçalho do placar |
+
+Nenhum desses quebra rota, contrato ou soma. Todos quebram a tela.
 
 ---
 
@@ -850,8 +910,8 @@ tools/check_readme.py          canário da documentação (fora do pacote: não 
 tools/web_check.py             parte da PoC, é quem audita a PoC — texto e tela)
 ```
 
-**3 089 linhas de Python**, 15 scripts numerados em `scripts/` (`00-setup` a
-`14-web-shots`), e um `Taskfile.yaml`
+**3 406 linhas de Python**, 16 scripts numerados em `scripts/` (`00-setup` a
+`15-web-restart`), e um `Taskfile.yaml`
 que chama script — nunca comando ad-hoc.
 
 O servidor web é **adapter driving**, no mesmo sentido do `cli.py`: ele traduz

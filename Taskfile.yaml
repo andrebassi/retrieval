@@ -83,6 +83,11 @@ tasks:
     cmds:
       - bash scripts/12-web.sh 2>&1 | tee {{.LOG}}-web.log
 
+  web:restart:
+    desc: "Reinicia a tela em segundo plano (o servidor roda sem reload)"
+    cmds:
+      - bash scripts/15-web-restart.sh 2>&1 | tee {{.LOG}}-web-restart.log
+
   web:check:
     desc: "Canário do front: todas as rotas e o bundle, sem browser"
     cmds:

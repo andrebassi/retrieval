@@ -288,12 +288,97 @@ if advice:
         gaps = [cell["value"] - by_name[name]["value"] for name in cell["tied"]]
         if any(gap >= advice["band"] for gap in gaps):
             problems.append("alguém no empate está fora da faixa de ruído")
+        # A partir daqui é o jogo: o placar da direita e as rodadas desenham
+        # exatamente estes campos, e cada um já apareceu errado na tela.
+        if not cell["swap"]:
+            problems.append("rodada 3 sem frase — o placar se mexe e ninguém sabe por quê")
+        if not cell["podium"] or cell["podium"][0]["name"] != cell["winner"]:
+            problems.append("o pódio não começa pela vencedora")
+        # O mata-mata é uma sequência: cada etapa recebe quem passou da anterior,
+        # e a última tem que terminar na vencedora. Etapa que "decide" sem tirar
+        # ninguém é o defeito clássico — a tela mostra o critério e a lista igual.
+        entered_before = None
+        for index, step in enumerate(cell["tiebreak"]):
+            names_in = set(step["entered"])
+            names_pass = set(step["passed"])
+            names_out = {row["name"] for row in step["out"]}
+            if not names_pass:
+                problems.append(f"etapa {index + 1} do mata-mata elimina todo mundo")
+            if not names_pass <= names_in:
+                problems.append(f"etapa {index + 1} deixa passar quem não entrou")
+            if names_in - names_pass != names_out:
+                problems.append(f"etapa {index + 1} não fecha: entrou − passou ≠ saiu")
+            if step["decided"] and not names_out:
+                problems.append(f"etapa {index + 1} diz que decidiu sem tirar ninguém")
+            if entered_before is not None and names_in != entered_before:
+                problems.append(f"etapa {index + 1} não recebe quem passou da anterior")
+            entered_before = names_pass
+        if cell["tiebreak"] and cell["tiebreak"][-1]["passed"][0] != cell["winner"]:
+            problems.append("o mata-mata termina em outra estratégia que não a vencedora")
+        # "subiu duas posições" só vale se o de-para bater com o placar desenhado.
+        for item in cell["moved"]:
+            if item["from"] == item["to"]:
+                problems.append(f"{item['name']} está na lista de trocas sem ter trocado")
         require(not problems, f"{key} → {cell['winner']}" + (f" [{'; '.join(problems)}]" if problems else ""))
     winners = {cell["winner"] for cell in advice["grid"].values()}
     print(f"  ℹ️  {len(winners)} estratégias diferentes vencem em algum cenário: {sorted(winners)}")
     require(
         advice["default"]["base"] in known and advice["default"]["upgrade"] in known,
         "a resposta curta aponta para estratégias que existem",
+    )
+
+print("\n== 10. /api/advice — as rodadas do jogo ==")
+if advice:
+    readers = advice["readers"]
+    budgets = advice["budgets"]
+    require(
+        len(advice["rounds"]["reader"]) == len(readers),
+        f"rodada 1 pronta para as {len(readers)} réguas",
+    )
+    require(
+        len(advice["rounds"]["budget"]) == len(readers) * len(budgets),
+        f"rodada 2 pronta para as {len(readers) * len(budgets)} combinações de régua × relógio",
+    )
+    # As duas primeiras rodadas vêm prontas justamente para o placar não recalcular
+    # nada no navegador. Se o back-end mandar um placar com menos de 6 linhas, a
+    # tela some com uma competidora sem dizer que ela saiu.
+    for key, round_data in advice["rounds"]["reader"].items():
+        problems = []
+        if len(round_data["board"]) != len(known):
+            problems.append(f"placar com {len(round_data['board'])} linhas, não {len(known)}")
+        if any(row["eliminated"] for row in round_data["board"]):
+            problems.append("alguém eliminado numa rodada que não elimina ninguém")
+        if not round_data["headline"]:
+            problems.append("rodada sem frase")
+        values = [row["value"] for row in round_data["board"]]
+        if values != sorted(values, reverse=True):
+            problems.append("placar fora de ordem")
+        require(not problems, f"rodada 1 · {key}" + (f" [{'; '.join(problems)}]" if problems else ""))
+    for key, round_data in advice["rounds"]["budget"].items():
+        problems = []
+        board = round_data["board"]
+        if len(board) != len(known):
+            problems.append(f"placar com {len(board)} linhas, não {len(known)}")
+        cut = [row["name"] for row in board if row["eliminated"]]
+        if cut != [row["name"] for row in round_data["out"]]:
+            problems.append("quem está riscado no placar não é quem está na lista de fora")
+        if len(round_data["alive"]) + len(round_data["out"]) != len(known):
+            problems.append("vivas + fora não fecham o total")
+        # A eliminação é por relógio, e só por relógio: linha riscada com p50
+        # dentro do limite significa que a régua de corte mudou no meio.
+        for row in board:
+            over = row["p50"] > round_data["ms"]
+            if over != row["eliminated"]:
+                problems.append(f"{row['name']} com {row['p50']:.1f} ms marcada errada")
+        if any(row["eliminated"] and not row["reason"] for row in board):
+            problems.append("eliminada sem motivo escrito")
+        if not round_data["headline"]:
+            problems.append("rodada sem frase")
+        require(not problems, f"rodada 2 · {key}" + (f" [{'; '.join(problems)}]" if problems else ""))
+    require(
+        len(advice["tiebreak_order"]) == 3
+        and all(step["title"] and step["why"] for step in advice["tiebreak_order"]),
+        "os 3 critérios do mata-mata chegam com título e motivo",
     )
 
 print(f"\n== erros: {errors} ==")

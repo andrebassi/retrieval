@@ -1,22 +1,32 @@
-// O escolhedor, em formato de assistente: uma pergunta por tela.
+// O escolhedor, em formato de torneio: quatro rodadas, seis competidoras, e um
+// placar que nunca sai da tela.
 //
-// A versão anterior punha as três perguntas lado a lado e o resultado embaixo.
-// Funcionava para quem já sabia o que cada pergunta significava — e essa pessoa
-// não precisa da aba. Quem precisa lia três perguntas de uma vez, não entendia
-// por que a segunda elimina candidatas antes de comparar nota, e escolhia no
-// chute.
+// Duas versões morreram antes desta. A primeira punha as três perguntas lado a
+// lado e o resultado embaixo — funcionava para quem já sabia o que cada pergunta
+// significava, e essa pessoa não precisa da aba. A segunda virou assistente, uma
+// pergunta por tela, com um desenho ao lado: melhor, mas ainda **inerte**. Quem
+// respondia não via nada acontecer com as seis; via três telas e uma resposta.
 //
-// Aqui cada passo mostra **a consequência da escolha antes de ela ser feita**:
-// um desenho ao lado das opções que reage à opção sob o cursor. A animação não
-// é enfeite — ela é o argumento. Mover o holofote de 1 para 3 resultados e ver o
-// documento certo entrar nele diz o que "hit@3" significa melhor que a
-// definição de hit@3.
+// O que faltava era o placar. Aqui as seis entram como competidoras e ficam
+// visíveis o tempo todo, à direita, em todas as rodadas:
+//
+//   1. **a régua** troca e o placar se remonta (ninguém sai, todas as notas mudam);
+//   2. **o relógio** derruba quem estoura o tempo, antes de a nota ser olhada;
+//   3. **o tipo de pergunta** vira a mesa: quem liderava despenca, e o de-para
+//      da posição aparece escrito;
+//   4. **o mata-mata** decide o empate, um critério por vez, e coroa a campeã.
+//
+// Cada rodada narra o que acabou de acontecer (`RoundFlash`) — movimento sem
+// legenda é enfeite, e enfeite é o que esta tela não pode ser. O desenho de cada
+// passo continua: ele mostra a consequência **antes** do clique, o placar mostra
+// a consequência **depois**.
 //
 // Por que `motion` e não Remotion: Remotion renderiza **vídeo** (React → MP4);
 // o que ela embute no browser é um player, que não reage a clique. Aqui a
-// animação precisa responder ao cursor e ao estado da URL, então a ferramenta
-// certa é uma lib de animação de UI. Remotion caberia num vídeo de abertura —
-// que é outro pedido, não este.
+// animação precisa responder ao cursor, ao estado da URL e à reordenação do
+// placar (o `layout` do `motion` faz FLIP sozinho), então a ferramenta certa é
+// uma lib de animação de UI. Remotion caberia num vídeo de abertura — que é
+// outro pedido, não este.
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -25,12 +35,14 @@ import {
   ArrowRight,
   ArrowsClockwise,
   CheckCircle,
+  Crown,
   Warning,
   XCircle,
 } from "@phosphor-icons/react";
 
 import { fetchAdvice } from "./api.js";
 import { Failed, Loading, useAsync } from "./common.jsx";
+import { MoveList, RoundFlash, Scoreboard, Tiebreak } from "./Game.jsx";
 
 // O cenário mais comum de verdade: alguém clicou em buscar, lê o primeiro
 // resultado, e as perguntas misturam código com descrição.
@@ -57,6 +69,16 @@ const STEP_NOTE = {
   kind:
     "Isto é o que a média esconde. As mesmas seis mudam de posição conforme o tipo de pergunta — é aqui que a tabela geral engana.",
   result: "Calculada com os números medidos, sem opinião no meio.",
+};
+
+// O que cada rodada faz com as seis. É o que separa "responda três perguntas" de
+// "jogue quatro rodadas": a pessoa sabe, antes de responder, se a resposta vai
+// **remontar** o placar, **eliminar** alguém ou **virar a mesa**.
+const ROUND_TAG = {
+  reader: { n: 1, of: 4, verb: "remonta o placar", tone: "swap" },
+  budget: { n: 2, of: 4, verb: "elimina por tempo", tone: "cut" },
+  kind: { n: 3, of: 4, verb: "vira a mesa", tone: "swap" },
+  result: { n: 4, of: 4, verb: "decide a campeã", tone: "win" },
 };
 
 // As caixinhas do desenho “o que eu monto, afinal”. O back-end devolve só os
@@ -391,106 +413,6 @@ function AnimatedPipeline({ stages }) {
   );
 }
 
-/** O placar do cenário, com a faixa de empate desenhada.
- *
- * Clicar numa linha abre o que aquela opção exige e o que a derruba: a
- * informação existia só para a vencedora, e a pergunta seguinte de quem lê é
- * sempre "e a segunda colocada, por que não?". */
-function RankList({ pick, band, bandPoints, metricLabel, byName }) {
-  const [open, setOpen] = useState(null);
-  const reduced = useReducedMotion();
-  const bandLeft = pick.value == null ? null : pick.value * 100 - bandPoints;
-
-  return (
-    <ol className="poc-rank">
-      {pick.ranked.map((row, position) => {
-        const trait = byName[row.name].trait;
-        const isOpen = open === row.name;
-        return (
-          <li
-            key={row.name}
-            className={row.eliminated ? "poc-rank-row poc-rank-out" : "poc-rank-row"}
-          >
-            <button
-              type="button"
-              className="poc-rank-hit"
-              aria-expanded={isOpen}
-              /* No resultado o nome é cortado com reticências para caber em uma
-               * linha — o `title` devolve o nome inteiro sem custar altura. */
-              title={`${row.label} (${row.name})`}
-              onClick={() => setOpen(isOpen ? null : row.name)}
-            >
-              <span className="poc-rank-name">
-                <strong>{row.label}</strong>
-                <code>{row.name}</code>
-                {row.name === pick.winner && <em className="poc-badge">escolhida</em>}
-                {row.name !== pick.winner && pick.tied.includes(row.name) && (
-                  <em className="poc-badge poc-badge-tie">empate técnico</em>
-                )}
-              </span>
-              <span className="poc-rank-track">
-                {!row.eliminated && bandLeft != null && (
-                  <motion.span
-                    className="poc-rank-band"
-                    style={{ left: `${bandLeft}%` }}
-                    initial={reduced ? false : { width: 0 }}
-                    animate={{ width: `${bandPoints}%` }}
-                    transition={reduced ? { duration: 0 } : { delay: 0.5, duration: 0.4 }}
-                    title={`Faixa de uma pergunta: ${bandPoints}%`}
-                  />
-                )}
-                <motion.span
-                  className="poc-rank-fill"
-                  initial={reduced ? false : { width: 0 }}
-                  animate={{ width: `${row.value * 100}%` }}
-                  transition={
-                    reduced
-                      ? { duration: 0 }
-                      : { type: "spring", stiffness: 110, damping: 20, delay: position * 0.07 }
-                  }
-                />
-              </span>
-              <span className="poc-rank-value">{pct(row.value)}</span>
-              <span className="poc-rank-side">
-                {row.eliminated
-                  ? row.reason
-                  : `${row.p50.toFixed(1)} ms${
-                      row.starved ? ` · ${row.starved} listas incompletas` : ""
-                    }`}
-              </span>
-            </button>
-            <AnimatePresence initial={false}>
-              {isOpen && (
-                <motion.div
-                  className="poc-rank-detail"
-                  initial={reduced ? false : { height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={reduced ? undefined : { height: 0, opacity: 0 }}
-                  transition={{ duration: reduced ? 0 : 0.22 }}
-                >
-                  <p>
-                    <strong>Precisa de:</strong> {trait.needs}
-                  </p>
-                  <p>
-                    <strong>Ajuste:</strong> {trait.tuning}
-                  </p>
-                  <p>
-                    <strong>O que a derruba:</strong> {trait.risk}
-                  </p>
-                  <p className="poc-muted">
-                    {metricLabel} em {pct(row.value)} das perguntas deste tipo · responde em{" "}
-                    {row.p50.toFixed(1)} ms
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 /** As opções do passo, com espiada no `hover`. */
 function Options({ options, value, onChange, onPreview }) {
   return (
@@ -515,9 +437,13 @@ function Options({ options, value, onChange, onPreview }) {
   );
 }
 
-/** A trilha do assistente. Clicável para trás e para os já respondidos: o
- * assistente guia, não prende — e as três respostas já vêm preenchidas com o
- * cenário mais comum, então "avançar" nunca está bloqueado. */
+/** A trilha das quatro rodadas. Clicável para trás e para as já jogadas: o jogo
+ * guia, não prende — e as três respostas já vêm preenchidas com o cenário mais
+ * comum, então "avançar" nunca está bloqueado.
+ *
+ * Cada item diz o que a rodada **faz** ("elimina por tempo"), não só o nome dela.
+ * Sem isso a trilha é um índice; com isso ela é a regra do jogo, e quem chega no
+ * passo 2 já sabe que vai perder competidoras. */
 function StepTrack({ step, onStep, chosen }) {
   return (
     <ol className="poc-track">
@@ -528,6 +454,7 @@ function StepTrack({ step, onStep, chosen }) {
             <span className="poc-track-text">
               <strong>{STEP_SHORT[id]}</strong>
               <span>{chosen[id] ?? "—"}</span>
+              <em className="poc-track-verb">{ROUND_TAG[id].verb}</em>
             </span>
           </button>
         </li>
@@ -541,6 +468,10 @@ export function AdviceTab({ explain, scenario, onScenario, step, onStep }) {
   // A espiada é estado local, não da URL: é gesto de cursor, não escolha. Subir
   // isso para a URL faria o link mudar ao passar o mouse.
   const [preview, setPreview] = useState(null);
+  // Qual linha do placar está aberta. Mora aqui, e não dentro do placar, porque o
+  // placar é remontado a cada rodada — estado interno dele fecharia o detalhe
+  // toda vez que a pessoa respondesse, justo quando ela está comparando duas.
+  const [open, setOpen] = useState(null);
   const reduced = useReducedMotion();
 
   // Seta do teclado anda entre os passos. Num assistente isso é esperado, e sai
@@ -584,6 +515,35 @@ export function AdviceTab({ explain, scenario, onScenario, step, onStep }) {
   const pick = data.grid[key];
   const byName = Object.fromEntries(data.strategies.map((row) => [row.name, row]));
   const readerRow = data.readers.find((row) => row.id === reader);
+  const kindRow = data.kinds.find((row) => row.id === kind);
+
+  // O placar de cada rodada. As duas primeiras vêm prontas do back-end em mapas
+  // próprios; as duas últimas saem da célula do grid — a rodada 4 não recalcula
+  // nada, ela só para de esconder o desempate que já estava ali.
+  const roundReader = data.rounds.reader[reader];
+  const roundBudget = data.rounds.budget[`${reader}|${budget}`];
+  const board =
+    stepId === "reader"
+      ? roundReader.board
+      : stepId === "budget"
+        ? roundBudget.board
+        : pick.ranked;
+  const flash =
+    stepId === "reader"
+      ? roundReader.headline
+      : stepId === "budget"
+        ? roundBudget.headline
+        : stepId === "kind"
+          ? pick.swap
+          : pick.why;
+  // O rótulo diz **sobre o quê** é a nota que está na tela, e ele muda no meio do
+  // jogo: nas duas primeiras rodadas ainda é a média das perguntas todas, porque
+  // o tipo só é escolhido na rodada 3. Sem dizer isso, o placar da rodada 2
+  // pareceria já valer para o cenário — e a virada da rodada 3 viraria bug.
+  const boardMetric =
+    stepId === "reader" || stepId === "budget"
+      ? `${readerRow.metric_label} · média das ${data.queries.total} perguntas`
+      : `${readerRow.metric_label} · perguntas do tipo “${kindRow.label}”`;
   const base = byName[data.default.base];
   const upgrade = byName[data.default.upgrade];
   const risky = byName[data.default.avoid_alone];
@@ -606,117 +566,165 @@ export function AdviceTab({ explain, scenario, onScenario, step, onStep }) {
   return (
     <>
       {/* Duas linhas, não cinco: a tese inteira cabe aqui, e o resto dela está
-        * no `<details>` do rodapé. Texto de abertura longo empurra o assistente
-        * para fora da primeira tela, e aí o passo 1 nasce sem ser visto. */}
+        * no `<details>` do rodapé. Texto de abertura longo empurra o jogo para
+        * fora da primeira tela, e aí a rodada 1 nasce sem ser vista. */}
       <p className="poc-intro">
-        As seis erram mais ou menos a mesma quantidade — só que em perguntas
-        diferentes. Escolher é decidir <em>qual erro</em> você aceita: três
-        perguntas, e o desenho ao lado mostra o que cada resposta muda.
+        Seis competidoras, quatro rodadas. Elas erram mais ou menos a mesma
+        quantidade — só que em perguntas diferentes, então <em>quem ganha depende
+        do que você responder</em>. O placar à direita se mexe a cada resposta, e
+        a linha em laranja diz por quê.
       </p>
 
       <StepTrack step={current} onStep={onStep} chosen={chosen} />
 
-      <div className="poc-step-frame">
-        <AnimatePresence mode="wait">
-          <motion.section key={stepId} className="poc-step" {...slide}>
-            <header className="poc-step-head">
-              <h3>{STEP_TITLE[stepId]}</h3>
-              <p className="poc-note">{STEP_NOTE[stepId]}</p>
-            </header>
+      <div className="poc-game">
+        <div className="poc-game-main">
+          <div className="poc-step-frame">
+            <AnimatePresence mode="wait">
+              <motion.section key={stepId} className="poc-step" {...slide}>
+                <header className="poc-step-head">
+                  <p className="poc-round-tag">
+                    rodada {ROUND_TAG[stepId].n} de {ROUND_TAG[stepId].of} ·{" "}
+                    <strong>{ROUND_TAG[stepId].verb}</strong>
+                  </p>
+                  <h3>{STEP_TITLE[stepId]}</h3>
+                  <p className="poc-note">{STEP_NOTE[stepId]}</p>
+                </header>
 
-            {stepId === "reader" && (
-              <div className="poc-step-body">
-                <Options
-                  options={data.readers}
-                  value={reader}
-                  onChange={answer("reader")}
-                  onPreview={setPreview}
+                {/* A narração da rodada. Fica ACIMA das opções e não abaixo do
+                  * desenho: ela conta o que a resposta anterior fez com o placar,
+                  * e a pessoa lê isso antes de escolher de novo — depois do
+                  * desenho, ela já teria decidido. */}
+                <RoundFlash
+                  text={flash}
+                  tone={ROUND_TAG[stepId].tone}
+                  icon={stepId === "result" ? Crown : undefined}
                 />
-                <ReaderDemo readers={data.readers} value={reader} preview={preview} />
-              </div>
-            )}
 
-            {stepId === "budget" && (
-              <div className="poc-step-body">
-                <Options
-                  options={data.budgets}
-                  value={budget}
-                  onChange={answer("budget")}
-                  onPreview={setPreview}
-                />
-                <BudgetDemo
-                  budgets={data.budgets}
-                  strategies={data.strategies}
-                  value={budget}
-                  preview={preview}
-                />
-              </div>
-            )}
-
-            {stepId === "kind" && (
-              <div className="poc-step-body">
-                <Options
-                  options={data.kinds}
-                  value={kind}
-                  onChange={answer("kind")}
-                  onPreview={setPreview}
-                />
-                <KindDemo
-                  strategies={data.strategies}
-                  value={kind}
-                  preview={preview}
-                  queries={data.queries}
-                />
-              </div>
-            )}
-
-            {stepId === "result" && (
-              /* Duas colunas, e não uma pilha: empilhado, o resultado tinha mais
-               * de 1 200 px e a barra de navegação sumia da tela — num assistente
-               * isso é o pior lugar para esconder o "refazer". A vencedora e o
-               * caminho dela ficam à esquerda; a comparação, à direita. */
-              <div className="poc-outcome">
-                {/* O desenho vem PRIMEIRO, e na largura inteira. Espremido na
-                  * coluna da vencedora ele quebrava em três linhas e passava de
-                  * 260 px; empurrado para o fim, era o primeiro a sair da tela —
-                  * justo ele, que é a única parte visual da resposta. Deitado no
-                  * topo, o caminho "duas buscas → soma → lista" cabe em 70 px e
-                  * está garantido na tela. */}
-                {pick.winner && (
-                  <div className="poc-outcome-flow">
-                    <AnimatedPipeline stages={pick.pipeline} />
+                {stepId === "reader" && (
+                  <div className="poc-step-body">
+                    <Options
+                      options={data.readers}
+                      value={reader}
+                      onChange={answer("reader")}
+                      onPreview={setPreview}
+                    />
+                    <ReaderDemo readers={data.readers} value={reader} preview={preview} />
                   </div>
                 )}
 
-                <div className="poc-outcome-grid">
-                  <div className="poc-outcome-side">
+                {stepId === "budget" && (
+                  <div className="poc-step-body">
+                    <Options
+                      options={data.budgets}
+                      value={budget}
+                      onChange={answer("budget")}
+                      onPreview={setPreview}
+                    />
+                    <BudgetDemo
+                      budgets={data.budgets}
+                      strategies={data.strategies}
+                      value={budget}
+                      preview={preview}
+                    />
+                  </div>
+                )}
+
+                {stepId === "kind" && (
+                  <div className="poc-step-body">
+                    <Options
+                      options={data.kinds}
+                      value={kind}
+                      onChange={answer("kind")}
+                      onPreview={setPreview}
+                    />
+                    <div className="poc-step-stack">
+                      <KindDemo
+                        strategies={data.strategies}
+                        value={kind}
+                        preview={preview}
+                        queries={data.queries}
+                      />
+                      {/* O de-para das posições. Ele é o argumento inteiro da
+                        * rodada: sem "do 1º para o 5º" escrito, o placar ao lado
+                        * se remonta e a pessoa lê como se as notas tivessem só
+                        * mudado de valor. */}
+                      <MoveList moved={pick.moved} />
+                    </div>
+                  </div>
+                )}
+
+                {stepId === "result" && (
+                  /* Coluna única: o placar saiu daqui e virou a barra lateral do
+                   * jogo, presente nas quatro rodadas. O que sobra à esquerda é a
+                   * campeã, o caminho dela e o mata-mata que a coroou — a
+                   * resposta à pergunta "por que essa e não a de cima". */
+                  <div className="poc-outcome">
+                    {/* O desenho vem PRIMEIRO, e na largura inteira. Espremido ao
+                      * lado do cartão ele quebrava em três linhas e passava de
+                      * 260 px; empurrado para o fim, era o primeiro a sair da
+                      * tela — justo ele, que é a única parte visual da resposta. */}
+                    {pick.winner && (
+                      <div className="poc-outcome-flow">
+                        <AnimatedPipeline stages={pick.pipeline} />
+                      </div>
+                    )}
+
                     {pick.winner ? (
-                      <>
-                        <motion.div
-                          className="poc-winner"
-                          initial={reduced ? false : { opacity: 0, y: 12 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ duration: reduced ? 0 : 0.3 }}
-                        >
-                          <span className="poc-winner-tag">use esta</span>
-                          <h3>{byName[pick.winner].label}</h3>
-                          <code>{pick.winner}</code>
-                          <p className="poc-winner-why">{pick.why}</p>
-                          {/* "O que a derruba" saiu daqui de propósito: ele é a
-                            * terceira linha do detalhe que abre ao clicar na
-                            * linha da vencedora, ao lado. Repetido nos dois
-                            * lugares custava 40 px — e 40 px eram a sexta opção
-                            * do ranking saindo da tela. */}
-                          <p className="poc-winner-needs">
-                            <strong>Precisa de:</strong> {byName[pick.winner].trait.needs} ·{" "}
-                            <strong>Ajuste:</strong> {byName[pick.winner].trait.tuning}
-                          </p>
-                        </motion.div>
-                      </>
+                      <motion.div
+                        className="poc-winner"
+                        initial={reduced ? false : { opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: reduced ? 0 : 0.3 }}
+                      >
+                        <span className="poc-winner-tag">
+                          <Crown size={13} weight="fill" /> campeã
+                        </span>
+                        <h3>{byName[pick.winner].label}</h3>
+                        <code>{pick.winner}</code>
+                        {/* "O que a derruba" saiu daqui de propósito: ele é a
+                          * terceira linha do detalhe que abre ao clicar na linha
+                          * da campeã, no placar ao lado. Repetido nos dois
+                          * lugares custava 40 px — e 40 px eram a sexta linha do
+                          * placar saindo da tela. */}
+                        <p className="poc-winner-needs">
+                          <strong>Precisa de:</strong> {byName[pick.winner].trait.needs} ·{" "}
+                          <strong>Ajuste:</strong> {byName[pick.winner].trait.tuning}
+                        </p>
+                      </motion.div>
                     ) : (
                       <div className="poc-alert">
                         <Warning size={18} weight="bold" /> {pick.why}
                       </div>
+                    )}
+
+                    {/* O mata-mata, um critério por vez. É aqui que "por que
+                      * ganhou" deixa de ser uma frase e passa a ser uma sequência
+                      * que acontece na tela — e a resposta quase nunca é "acerta
+                      * mais", é um critério de engenharia dentro de um empate. */}
+                    {pick.winner && pick.tiebreak.length > 0 && (
+                      <>
+                        <h4 className="poc-tb-title">
+                          {pick.tied.length} empatam dentro de{" "}
+                          <strong>{data.band_points} pontos</strong> — o mata-mata:
+                        </h4>
+                        <Tiebreak
+                          steps={pick.tiebreak}
+                          winnerLabel={byName[pick.winner].label}
+                        />
+                      </>
+                    )}
+                    {/* Sem mata-mata quando ninguém entrou na faixa junto com a
+                      * campeã. Dizer isso é melhor que calar: o silêncio no lugar
+                      * onde nas outras rodadas há um mata-mata lê como tela
+                      * quebrada, e o caso "ganhou pela nota, sem empate" é o
+                      * único em que a nota decide sozinha. */}
+                    {pick.winner && pick.tiebreak.length === 0 && (
+                      <p className="poc-tb-skip">
+                        Sem mata-mata: nenhuma outra chegou a menos de{" "}
+                        <strong>{data.band_points} pontos</strong> da campeã, então a
+                        nota decidiu sozinha.
+                      </p>
                     )}
 
                     {pick.notes.map((note) => (
@@ -725,10 +733,20 @@ export function AdviceTab({ explain, scenario, onScenario, step, onStep }) {
                       </p>
                     ))}
 
-                    {/* Dobrado, e na coluna da vencedora: é a saída de quem não
-                      * quer responder as três perguntas, e quem chegou até aqui
-                      * já respondeu. Aberto — ou em faixa própria embaixo —
-                      * empurrava o desenho do caminho para fora da tela. */}
+                    <p className="poc-legend">
+                      O selo <em>empatada</em> no placar vale{" "}
+                      <strong>{data.band_points} pontos</strong>, que é o que{" "}
+                      <strong>uma única pergunta</strong> vale com{" "}
+                      {data.queries.total} perguntas medidas. Quem cai dentro dessa
+                      faixa não está atrás da campeã: está empatado. Toda comparação de
+                      busca que você ler por aí ignora essa faixa — e é por isso que
+                      tanta gente troca de motor para ganhar dois pontos que não
+                      existem.
+                    </p>
+
+                    {/* Dobrado: é a saída de quem não quer jogar as rodadas, e
+                      * quem chegou até aqui já jogou. Aberto, empurrava o desenho
+                      * do caminho para fora da tela. */}
                     <details className="poc-answer">
                       <summary>E se eu não quiser responder nada disso</summary>
                       <ol className="poc-answer-list">
@@ -755,62 +773,54 @@ export function AdviceTab({ explain, scenario, onScenario, step, onStep }) {
                       </ol>
                     </details>
                   </div>
+                )}
+              </motion.section>
+            </AnimatePresence>
+          </div>
 
-                  <div className="poc-outcome-side">
-                    <h4 className="poc-rank-title">
-                      Todas as seis neste cenário — {readerRow.metric_label}, nas
-                      perguntas do tipo escolhido.{" "}
-                      <em>Clique numa linha para ver o que ela exige.</em>
-                    </h4>
-                    <RankList
-                      pick={pick}
-                      band={data.band}
-                      bandPoints={data.band_points}
-                      metricLabel={readerRow.metric_label}
-                      byName={byName}
-                    />
-                    <p className="poc-legend">
-                      A faixa listrada tem <strong>{data.band_points} pontos</strong> de
-                      largura, que é o que <strong>uma única pergunta</strong> vale com{" "}
-                      {data.queries.total} perguntas medidas. Quem cai dentro dela não
-                      está atrás da líder: está empatado. Toda comparação de busca que
-                      você ler por aí ignora essa faixa — e é por isso que tanta gente
-                      troca de motor para ganhar dois pontos que não existem.
-                    </p>
-                  </div>
-                </div>
-              </div>
+          <nav className="poc-steps-nav">
+            <button
+              type="button"
+              className="poc-nav-btn"
+              onClick={() => onStep(Math.max(current - 1, 0))}
+              disabled={current === 0}
+            >
+              <ArrowLeft size={16} weight="bold" /> voltar
+            </button>
+            <span className="poc-nav-where">
+              rodada {current + 1} de {STEP_IDS.length}
+            </span>
+            {current < STEP_IDS.length - 1 ? (
+              <button
+                type="button"
+                className="poc-nav-btn poc-nav-go"
+                onClick={() => onStep(current + 1)}
+              >
+                avançar <ArrowRight size={16} weight="bold" />
+              </button>
+            ) : (
+              <button type="button" className="poc-nav-btn" onClick={() => onStep(0)}>
+                <ArrowsClockwise size={16} weight="bold" /> jogar de novo
+              </button>
             )}
-          </motion.section>
-        </AnimatePresence>
-      </div>
+          </nav>
+        </div>
 
-      <nav className="poc-steps-nav">
-        <button
-          type="button"
-          className="poc-nav-btn"
-          onClick={() => onStep(Math.max(current - 1, 0))}
-          disabled={current === 0}
-        >
-          <ArrowLeft size={16} weight="bold" /> voltar
-        </button>
-        <span className="poc-nav-where">
-          passo {current + 1} de {STEP_IDS.length}
-        </span>
-        {current < STEP_IDS.length - 1 ? (
-          <button
-            type="button"
-            className="poc-nav-btn poc-nav-go"
-            onClick={() => onStep(current + 1)}
-          >
-            avançar <ArrowRight size={16} weight="bold" />
-          </button>
-        ) : (
-          <button type="button" className="poc-nav-btn" onClick={() => onStep(0)}>
-            <ArrowsClockwise size={16} weight="bold" /> refazer
-          </button>
-        )}
-      </nav>
+        {/* O placar. Nunca sai da tela — é ele que transforma três perguntas num
+          * jogo, porque é onde a resposta vira consequência visível. */}
+        <Scoreboard
+          rows={board}
+          phase={stepId}
+          winner={pick.winner}
+          tied={pick.tied}
+          podium={pick.podium}
+          metricLabel={boardMetric}
+          byName={byName}
+          bandPoints={data.band_points}
+          open={open}
+          onOpen={setOpen}
+        />
+      </div>
 
       <details className="poc-plain" open={explain}>
         <summary>por que não existe “a melhor” — leia antes de discordar</summary>

@@ -47,6 +47,22 @@ STRATEGY_LABEL = {
     "rrf_rerank": "As duas juntas + um revisor",
 }
 
+# O mesmo nome, curto o bastante para caber numa linha do placar.
+#
+# Não é economia de espaço: o placar corta com reticências, e as três variantes
+# de "As duas juntas…" ficavam todas em “As duas juntas, somando…”. Três linhas
+# com o mesmo texto e notas diferentes é pior que nome nenhum — quem lê acha que
+# a tela repetiu a mesma estratégia. O `·` separa o que era vírgula porque o
+# corte por reticências costumava cair exatamente nela.
+STRATEGY_SHORT = {
+    "dense": "Significado",
+    "ts_rank": "Palavra · simples",
+    "bm25": "Palavra · com peso",
+    "weighted": "Duas juntas · notas",
+    "rrf": "Duas juntas · posições",
+    "rrf_rerank": "Duas juntas + revisor",
+}
+
 # Cada opção em uma frase, mais o que ela faz bem e o que ela faz mal. É o que
 # a tabela de médias não conta: as seis "erram 20%", só que em perguntas
 # diferentes — e escolher motor é escolher **qual erro** você aceita.
@@ -546,6 +562,224 @@ def disagreements() -> dict:
     }
 
 
+# A régua mais frouxa das três. Serve de linha-base para dizer o que a escolha
+# de quem lê **fez** com o placar: em `hit_at_10` quase todas empatam, e é o
+# aperto da régua que separa as seis. Sem uma linha-base a rodada 1 não tem o que
+# narrar — mostraria seis notas sem dizer que elas mudaram.
+BASELINE_METRIC = "hit_at_10"
+
+
+def _round_reader(rows: list[dict], reader: dict) -> dict:
+    """Rodada 1: a régua troca e o placar inteiro se remonta.
+
+    Nenhuma competidora é eliminada aqui — o que muda é o **número que está
+    sendo comparado**. A rodada existe para mostrar isso acontecendo: quem tinha
+    100% olhando os dez pode cair para 54% se a régua exigir o primeiro lugar, e
+    esse tombo é a coisa mais informativa da tela.
+    """
+    metric = reader["metric"]
+    board = []
+    for row in rows:
+        value = row[metric]
+        baseline = row[BASELINE_METRIC]
+        board.append(
+            {
+                "name": row["strategy"],
+                "label": STRATEGY_LABEL[row["strategy"]],
+                "value": value,
+                "p50": row["query_ms_p50"],
+                # As três rodadas alimentam o MESMO placar, então elas devolvem o
+                # mesmo formato de linha — inclusive os campos que não se aplicam
+                # ainda. Deixar o front preencher o que falta é convidá-lo a
+                # inventar: `eliminated` ausente vira `undefined`, que é falso por
+                # acidente e não por decisão.
+                "eliminated": False,
+                "reason": "",
+                "baseline": baseline,
+                # Em pontos percentuais, que é a unidade da faixa de empate — a
+                # mesma que o resto da tela usa para dizer o que é diferença real.
+                "drop": round((baseline - value) * 100, 1),
+            }
+        )
+    board.sort(key=lambda item: (-item["value"], item["name"]))
+
+    spread = round((board[0]["value"] - board[-1]["value"]) * 100, 1)
+    hardest = max(board, key=lambda item: item["drop"])
+    if metric == BASELINE_METRIC:
+        headline = (
+            f"Esta é a régua mais frouxa das três: basta o documento certo aparecer "
+            f"em algum lugar dos dez. {sum(1 for item in board if item['value'] >= 1.0)} "
+            f"das {len(board)} chegam a 100% aqui — e é por isso que quase toda "
+            f"comparação de busca que você lê por aí parece um empate."
+        )
+    elif hardest["drop"] <= 0:
+        headline = f"Ninguém perde nota ao apertar a régua para “{reader['metric_label']}”."
+    else:
+        headline = (
+            f"Apertando a régua para “{reader['metric_label']}”, "
+            f"“{hardest['label']}” é quem mais sofre: cai {hardest['drop']:.1f} pontos "
+            f"em relação a olhar os dez. O placar se remonta inteiro."
+        )
+    return {"metric": metric, "board": board, "spread": spread, "headline": headline}
+
+
+def _budget_seats(rows: list[dict], metric: str, budget_ms: float) -> dict[str, int]:
+    """Em que posição o placar terminou a rodada 2.
+
+    Existe como função própria porque **dois** lugares precisam da mesma ordem: a
+    rodada 2, que a desenha, e a rodada 3, que compara contra ela para dizer quem
+    subiu e quem desceu. Calculada nos dois, ela sairia diferente no dia em que um
+    dos dois mudasse de critério — e a tela mostraria uma seta para cima ao lado de
+    uma linha que não se mexeu.
+    """
+    alive = sorted(
+        (row for row in rows if row["query_ms_p50"] <= budget_ms),
+        key=lambda row: (-row[metric], row["query_ms_p50"]),
+    )
+    out = sorted(
+        (row for row in rows if row["query_ms_p50"] > budget_ms),
+        key=lambda row: row["query_ms_p50"],
+    )
+    return {row["strategy"]: index for index, row in enumerate(alive + out)}
+
+
+def _round_budget(rows: list[dict], reader: dict, budget: dict) -> dict:
+    """Rodada 2: o relógio elimina, e elimina antes de a nota ser olhada.
+
+    O tempo comparado aqui é o **global**, não o da família: o tipo de pergunta
+    só é escolhido na rodada seguinte. Isso não é imprecisão a esconder — é a
+    reviravolta da rodada 3, quando o mesmo corte é refeito com o tempo daquele
+    tipo e alguém pode voltar para a mesa. A tela diz que é provisório.
+    """
+    metric = reader["metric"]
+    alive, out = [], []
+    for row in rows:
+        p50 = row["query_ms_p50"]
+        eliminated = p50 > budget["ms"]
+        item = {
+            "name": row["strategy"],
+            "label": STRATEGY_LABEL[row["strategy"]],
+            "value": row[metric],
+            "p50": p50,
+            "eliminated": eliminated,
+            "reason": (
+                f"leva {p50:.1f} ms, e o limite é {budget['ms']:.0f} ms" if eliminated else ""
+            ),
+        }
+        (out if eliminated else alive).append(item)
+    seats = _budget_seats(rows, metric, budget["ms"])
+
+    if not out:
+        headline = (
+            f"Com {budget['ms']:.0f} ms de folga, as {len(rows)} continuam na mesa. "
+            "Esta pergunta não elimina ninguém — ela só deixa de eliminar."
+        )
+    elif not alive:
+        headline = f"Nenhuma das {len(rows)} responde em até {budget['ms']:.0f} ms."
+    else:
+        best_out = max(out, key=lambda item: item["value"])
+        headline = (
+            f"{len(out)} de {len(rows)} saem da mesa por tempo, sem a nota ter sido "
+            f"olhada — inclusive “{best_out['label']}”, que acerta "
+            f"{best_out['value'] * 100:.1f}%. Nota alta não salva de estourar o relógio."
+        )
+    # Eliminadas embaixo, e ordenadas por tempo: o placar conta a história de
+    # cima para baixo, e quem saiu fica visível — some da disputa, não da tela.
+    #
+    # `out` sai na MESMA ordem do placar, e não na ordem em que `rows` chegou:
+    # os dois desenham a mesma eliminação, e ordens diferentes fazem a lista de
+    # quem caiu contradizer as linhas riscadas logo ao lado. Pego pelo canário.
+    return {
+        "ms": budget["ms"],
+        "board": sorted(alive + out, key=lambda item: seats[item["name"]]),
+        "alive": [item["name"] for item in alive],
+        "out": sorted(out, key=lambda item: seats[item["name"]]),
+        "headline": headline,
+    }
+
+
+# Os três critérios do desempate, na ordem em que são aplicados. Cada um é uma
+# rodada do mata-mata: quem não tem o melhor valor **sai**, e o motivo da saída é
+# derivado do próprio critério — texto fixo aqui já produziu a contradição da
+# armadilha 23.
+TIEBREAK_CRITERIA = [
+    {
+        "id": "starved",
+        "title": "Devolve a lista cheia?",
+        "why": (
+            "Lista curta é o fracasso que ninguém percebe: o documento certo está "
+            "lá, mas a tela parece vazia e quem usa desiste antes de rolar."
+        ),
+        "key": lambda row: row["starved"],
+    },
+    {
+        "id": "tuning",
+        "title": "Tem algo para calibrar?",
+        "why": (
+            "Número calibrado neste acervo é dívida: no próximo acervo ele deixa de "
+            "valer e a qualidade cai sem ninguém receber alerta."
+        ),
+        "key": lambda row: 0 if row["tuning_free"] else 1,
+    },
+    {
+        "id": "speed",
+        "title": "Quem responde mais rápido?",
+        "why": "Empatadas em tudo o que importa, sobra o relógio.",
+        "key": lambda row: row["p50"],
+    },
+]
+
+
+def _tiebreak_out_reason(criterion_id: str, row: dict, winner: dict) -> str:
+    """Por que **esta** saiu **nesta** rodada, lido do critério que a cortou."""
+    if criterion_id == "starved":
+        return (
+            f"devolve lista curta em {row['starved']} perguntas, contra "
+            f"{winner['starved']} de quem passou"
+        )
+    if criterion_id == "tuning":
+        return "precisa de peso e escala calibrados neste acervo"
+    return f"leva {row['p50']:.1f} ms, contra {winner['p50']:.1f} ms de quem passou"
+
+
+def _tiebreak_steps(contenders: list[dict]) -> list[dict]:
+    """O desempate contado como mata-mata, um critério por vez.
+
+    A frase única de `why` já dizia o resultado do desempate; o que faltava era
+    ver **acontecer**. Cada etapa devolve quem entrou, quem passou e quem caiu —
+    e a etapa que não separa ninguém também aparece, porque "este critério não
+    distinguiu nada" é informação: é o que justifica passar para o próximo.
+    """
+    steps: list[dict] = []
+    alive = list(contenders)
+    for criterion in TIEBREAK_CRITERIA:
+        if len(alive) <= 1:
+            break
+        best = min(criterion["key"](row) for row in alive)
+        passed = [row for row in alive if criterion["key"](row) == best]
+        cut = [row for row in alive if criterion["key"](row) != best]
+        steps.append(
+            {
+                "id": criterion["id"],
+                "title": criterion["title"],
+                "why": criterion["why"],
+                "entered": [row["name"] for row in alive],
+                "passed": [row["name"] for row in passed],
+                "out": [
+                    {
+                        "name": row["name"],
+                        "label": row["label"],
+                        "reason": _tiebreak_out_reason(criterion["id"], row, passed[0]),
+                    }
+                    for row in cut
+                ],
+                "decided": bool(cut),
+            }
+        )
+        alive = passed
+    return steps
+
+
 def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band: float) -> dict:
     """Quem ganha neste cenário, e por quê — só com o que foi medido.
 
@@ -595,6 +829,13 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             "pipeline": [],
             "why": f"Nenhuma das seis responde em até {budget_ms:.0f} ms neste tipo de pergunta.",
             "notes": [],
+            "tiebreak": [],
+            "moved": [],
+            "swap": (
+                f"Não sobrou ninguém para trocar de lugar: o limite de {budget_ms:.0f} ms "
+                "tirou as seis da mesa na rodada anterior."
+            ),
+            "podium": [],
         }
 
     # Dentro da faixa de uma pergunta **não existe ordem por nota** — declarar
@@ -616,6 +857,7 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
     winner = contenders[0]
     tied = [row["name"] for row in contenders]
     losers = contenders[1:]
+    tiebreak = _tiebreak_steps(contenders)
 
     # A lista da tela tem que sair na MESMA ordem do desempate, senão o topo dela
     # contradiz o cartão logo acima: com o `sort` por nota, a `weighted` (117,8 ms)
@@ -704,6 +946,56 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
                 "da lista curta. Se um dia esses dez forem para um modelo ler, "
                 "esta escolha muda."
             )
+    # Quem subiu e quem desceu ao trocar a média geral pelo tipo de pergunta.
+    # É a reviravolta da rodada 3, e o número que a sustenta: o denso sai de 81,1%
+    # na média para 54,5% nos códigos. Sem o "de que posição para qual", a tela
+    # mostraria notas novas sem dizer que **mudou de ordem**.
+    #
+    # A comparação é contra o placar como ele terminou a **rodada 2**, não contra
+    # a ordem de nota global: é o que está desenhado na tela no instante anterior,
+    # e "subiu duas posições" precisa bater com o que a pessoa acabou de ver.
+    seat_before = _budget_seats(rows, metric, budget_ms)
+    moved = [
+        {
+            "name": row["name"],
+            "label": row["label"],
+            "from": seat_before[row["name"]] + 1,
+            "to": index + 1,
+            "value": row["value"],
+            "was": next(r[metric] for r in rows if r["strategy"] == row["name"]),
+        }
+        for index, row in enumerate(ranked)
+        if seat_before[row["name"]] != index
+    ]
+
+    # A frase da rodada 3. Prioriza a **queda** e não a subida: o que a média
+    # esconde é sempre alguém despencando, e é essa a lição da PoC. Sem troca
+    # nenhuma a frase diz isso também — "não mudou nada" é resultado, não é falta
+    # de resultado, e calar aqui deixaria o placar mudo justo na rodada que existe
+    # para mostrar movimento.
+    if moved:
+        worst = min(moved, key=lambda item: item["value"] - item["was"])
+        delta = (worst["was"] - worst["value"]) * 100
+        if delta > 0:
+            swap = (
+                f"A mesa virou: “{worst['label']}” cai do {worst['from']}º para o "
+                f"{worst['to']}º lugar e perde {delta:.1f} pontos — "
+                f"{worst['was'] * 100:.1f}% na média, {worst['value'] * 100:.1f}% neste "
+                "tipo de pergunta. É exatamente isso que a tabela geral esconde."
+            )
+        else:
+            best = max(moved, key=lambda item: item["value"] - item["was"])
+            swap = (
+                f"{len(moved)} trocam de lugar, e ninguém piora: “{best['label']}” sobe do "
+                f"{best['from']}º para o {best['to']}º com {best['value'] * 100:.1f}% "
+                "neste tipo de pergunta."
+            )
+    else:
+        swap = (
+            "Ninguém troca de lugar: neste tipo de pergunta a ordem é a mesma da "
+            "média geral. Acontece — o que não dá é contar com isso sem medir."
+        )
+
     return {
         "winner": winner["name"],
         "value": winner["value"],
@@ -712,6 +1004,17 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         "pipeline": PIPELINE_OF[winner["name"]],
         "why": why,
         "notes": notes,
+        "tiebreak": tiebreak,
+        "moved": moved,
+        "swap": swap,
+        # O pódio do jogo: as três primeiras que ainda estão de pé. Sai daqui e
+        # não do `ranked[:3]` no front porque eliminada não sobe ao pódio nem
+        # quando sobram menos de três de pé — nesse caso o pódio é curto mesmo.
+        "podium": [
+            {"name": row["name"], "label": row["label"], "value": row["value"]}
+            for row in ranked
+            if not row["eliminated"]
+        ][:3],
     }
 
 
@@ -738,7 +1041,15 @@ def advice() -> dict:
     band = 1.0 / totals["total"]
 
     grid = {}
+    # As rodadas 1 e 2 não dependem do cenário inteiro: a régua depende só de quem
+    # lê, e o corte por tempo de quem lê + quanto se espera. Guardá-las em mapas
+    # de 3 e 9 entradas — em vez de repetir dentro das 27 células do grid — mantém
+    # o payload numa chamada só, e o jogo sem espera entre rodadas.
+    rounds_reader = {reader["id"]: _round_reader(rows, reader) for reader in ADVICE_READERS}
+    rounds_budget = {}
     for reader in ADVICE_READERS:
+        for budget in ADVICE_BUDGETS:
+            rounds_budget[f"{reader['id']}|{budget['id']}"] = _round_budget(rows, reader, budget)
         for budget in ADVICE_BUDGETS:
             for kind in ADVICE_KINDS:
                 grid[f"{reader['id']}|{budget['id']}|{kind['id']}"] = _rank_for(
@@ -756,6 +1067,7 @@ def advice() -> dict:
             {
                 "name": row["strategy"],
                 "label": STRATEGY_LABEL[row["strategy"]],
+                "short": STRATEGY_SHORT[row["strategy"]],
                 "hit_at_1": row["hit_at_1"],
                 "hit_at_3": row["hit_at_3"],
                 "hit_at_10": row["hit_at_10"],
@@ -771,6 +1083,11 @@ def advice() -> dict:
             for row in rows
         ],
         "grid": grid,
+        "rounds": {"reader": rounds_reader, "budget": rounds_budget},
+        "tiebreak_order": [
+            {"id": item["id"], "title": item["title"], "why": item["why"]}
+            for item in TIEBREAK_CRITERIA
+        ],
         # A resposta curta, para quem não quer responder três perguntas. Os
         # nomes ficam aqui e os números que os sustentam saem de `strategies` —
         # não há número escrito duas vezes.
