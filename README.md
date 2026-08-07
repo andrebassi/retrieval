@@ -536,7 +536,7 @@ Esta tabela é estática e cabe em três linhas de resumo: **comece pela fusão 
 posição** (`rrf`), **ligue o revisor** (`rrf_rerank`) só quando o primeiro
 resultado for o que a pessoa lê, e **nunca use o denso sozinho**. Quem quiser a
 mesma decisão para o *seu* caso, com os 27 cenários calculados sobre os mesmos
-números medidos, joga o torneio de 4 rodadas da aba **“Qual devo usar?”** do
+números medidos, assiste ao vídeo de 20 a 34 s da aba **“Qual devo usar?”** do
 `task web` — descrito em [A tela](#a-tela).
 
 ---
@@ -668,7 +668,7 @@ marcado em cada resultado.
 task web:build    # compila o front para dentro do pacote Python
 task web          # http://127.0.0.1:8081 (compila sozinho se faltar o bundle)
 task web:check    # CANÁRIO do front — todas as rotas e o bundle, sem browser
-task web:shots    # quinze prints (exige 'task web' de pé)
+task web:shots    # dezoito prints (exige 'task web' de pé)
 task web:restart  # rebuild não basta: o servidor sobe sem reload
 ```
 
@@ -677,34 +677,40 @@ entrada, e responde a pergunta que sobra depois de ler a tabela inteira:
 
 | Aba | Responde |
 |---|---|
-| **Qual devo usar?** | torneio de 4 rodadas com **placar ao vivo**: as seis entram como competidoras e ficam na tela o tempo todo. A régua de leitura remonta as notas (r1), o relógio derruba quem estoura o orçamento (r2), o tipo de pergunta vira a mesa e a tela lista o de-para de quem subiu e desceu (r3), e o empate vai para um **mata-mata** de três critérios, etapa por etapa, até sobrar a campeã (r4) |
+| **Qual devo usar?** | um **vídeo** de 20 a 34 s, montado no navegador a partir do payload: as seis entram sem nota, cada cena aplica **um** critério e mexe no placar na frente de quem assiste, e o empate vai para um mata-mata que decide a campeã. Uma ideia por cena, uma linha de legenda, controles de vídeo de verdade |
 | **Fazer uma pergunta** | as 6 estratégias sobre a mesma consulta, com acerto, latência e a marca de **voltou incompleta** quando devolveu menos que `k` |
 | **Como isso fica guardado** | o que existe no banco para um documento: lexemas com `tf`/`df`/IDF, as 24 primeiras dimensões do vetor e o texto indexado |
 | **Quem acerta mais** | a mesma tabela do `results/evaluation.json`, servida byte a byte — não recalculada |
 | **Onde elas discordam** | os 15 casos em que as estratégias divergem, com id, texto da consulta e o rank que cada uma deu |
 
 Cada aba tem **URL própria** (`?tab=score`, `?tab=document&doc=ch_5506`), e o
-torneio também, inclusive a rodada em que ele está
-(`?reader=llm&budget=patient&kind=conceptual&step=4`). Não é enfeite: sem isso
+vídeo também, inclusive o capítulo em que ele está
+(`?reader=llm&budget=patient&kind=conceptual&step=8`). Não é enfeite: sem isso
 não existe link para uma aba nem para um cenário, e nenhuma ferramenta que
 fotografa a tela chega às outras quatro — foi o que dispensou um script de CDP
-com websocket só para clicar em botão. No torneio o `step` faz mais: cada rodada
-desenha uma coisa diferente, então um print só provaria que a **primeira**
-desenhou, e as outras três renderizariam num ramo que nunca teria sido olhado —
-por isso os prints `passo-tempo`, `passo-perguntas` e `passo-resposta`. É também
-o que permite provar por print que o torneio **muda de campeã**: `recomendacao` e
-`recomendacao-llm` são o mesmo componente com cenários diferentes, e terminam em
-estratégias diferentes.
+com websocket só para clicar em botão.
 
-Os **cinco prints do jogo** existem pelo mesmo motivo, um degrau abaixo: cada um
-desenha um ramo que o cenário de entrada não passa, e ramo de tela nunca
-fotografado é ramo que quebra sem ninguém ver. `jogo-corte` é o relógio de 5 ms
-derrubando 4 das 6 de uma vez (nos outros orçamentos cai uma ou nenhuma, e a
-eliminação em bloco não apareceria em print nenhum); `jogo-trocas` é a rodada 3
-com seis mudando de posição, e `jogo-sem-trocas` é a mesma rodada quando ninguém
-se move — a tela **diz** isso, em vez de ficar muda; `jogo-mata-mata` abre as três
-etapas do desempate; e `jogo-sem-empate` é o caso raro em que a nota decide
-sozinha e não há mata-mata para mostrar.
+No vídeo o `step` faz mais: cada cena desenha um ramo diferente da composição, e
+o que só existe **enquanto o vídeo toca** nenhum print alcança. Daí os **treze
+prints `video-*`**, um por ramo:
+
+| Print | O ramo que ele é o único a cobrir |
+|---|---|
+| `video-abertura` | as seis entram com a barra a zero — o único quadro sem régua escolhida |
+| `video-quem-le` · `video-tempo` · `video-pergunta` | as três rodadas que remontam o placar; `video-tempo` é a única com linha riscada |
+| `video-desempate` | a cena que existe **só** quando a nota empata |
+| `video-criterio1/2/3` | os critérios do mata-mata, que são as cenas que de fato **elegem** a campeã. O 3º só aparece quando os dois primeiros não separam ninguém, e tem cenário próprio para chegar lá |
+| `video-campea` | o placar dá lugar ao pódio — outro desenho, não outro estado |
+| `video-llm` | o mesmo componente, cenário diferente, **campeã diferente** |
+| `video-corte` | o relógio de 5 ms derrubando 4 das 6 de uma vez; nos outros orçamentos cai uma ou nenhuma |
+| `video-trocas` | seis mudando de posição na mesma cena — a reordenação que dá nome à PoC |
+| `video-sem-empate` | o caso em que a nota decide sozinha: o roteiro pula a cena de empate **e o mata-mata inteiro**, e o vídeo tem cinco capítulos em vez de oito |
+
+O print determinístico sai de graça de uma decisão de acessibilidade:
+`prefers-reduced-motion: reduce` deixa o player **parado** em vez de tocando
+sozinho, e o Chrome headless roda com `--force-prefers-reduced-motion`. Sem isso
+o print seria uma corrida contra a reprodução — o mesmo `?step=` devolveria um
+quadro diferente a cada rodada.
 
 **A tela fala com quem não é da área.** O nome de cada estratégia aparece em
 português (`dense` → "Busca por significado"), e cada cartão dobra uma explicação
@@ -719,12 +725,17 @@ Decisões que valem registro:
 - **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
   `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
   precisa de Node — precisa do bundle, que já está no lugar. Medido: `index.html`
-  554 B, CSS 147,67 kB (24,58 kB gzip), JS 415,60 kB (128,60 kB gzip). O salto de
-  252 kB para 415 kB no JS é o `motion` — as animações do torneio. Custa 50,9 kB
-  gzip a mais, num arquivo servido da própria máquina; o que ele compra é o
-  `layout` que reordena o placar sozinho (mede antes, mede depois, interpola), e
-  é ele que faz alguém **ver** o denso despencar quatro posições em vez de ler
-  que ele cai nas literais.
+  554 B (370 B gzip), CSS 134 362 B (22 105 B gzip), JS 512 972 B (159 173 B
+  gzip). Contra o que este README media na versão anterior — CSS 147,67 kB
+  (24,58 kB gzip), JS 415,60 kB (128,60 kB gzip) —, trocar o torneio em CSS +
+  `motion` pelo `@remotion/player` custou **+97 372 B de JS** e devolveu
+  **−13 308 B de CSS**: saldo de +84 064 B crus, +28 098 B gzipados, num arquivo
+  servido da própria máquina. O que isso compra é a rolagem sumir **por
+  construção** — canvas 1600×900 escalado pelo Player — em vez de sumir por
+  ajuste de CSS que a próxima janela estreita desfaz. O `motion` saiu do
+  `package.json` junto: sem nenhum `import`, ele já não entrava no bundle (o
+  hash do JS não mudou ao removê-lo), mas dependência que ninguém usa é
+  dependência que alguém reinstala sem querer.
 - **A barra de pontuação normaliza dentro da coluna, nunca entre estratégias.**
   BM25 vai de 1,5 a 28; cosseno de 0,29 a 0,78; RRF são frações de 1/61. Uma
   escala comum faria a barra do RRF sumir e dar a impressão de que a fusão
@@ -737,7 +748,7 @@ Decisões que valem registro:
   ela poderia discordar do `REPORT.md` e ninguém notaria. O canário compara os
   dois byte a byte.
 
-### O torneio: a mesma decisão, jogada
+### O vídeo: a mesma decisão, uma cena por critério
 
 A aba de entrada não opina — ela lê `results/evaluation.json` e resolve, para
 cada um dos **27 cenários** (3 leitores × 3 orçamentos de tempo × 3 tipos de
@@ -745,19 +756,53 @@ pergunta), qual estratégia recomendar. A aritmética inteira vive no back-end
 (`/api/advice`), pela mesma razão de sempre: existe **um** caminho de cálculo, e
 ele é testável pelo canário. O front só desenha.
 
-**A primeira versão era um assistente correto e morto**: três perguntas, resposta
-no fim. Quem respondia não via nada acontecer — e o que esta PoC tem de
-interessante é justamente que as seis trocam de lugar conforme a pergunta. Hoje
-as seis entram como competidoras e ficam no placar, à direita, o tempo inteiro:
-cada resposta mexe no placar **na frente de quem respondeu**, e a explicação vem
-junto do movimento, não depois dele.
+**Três versões morreram até chegar aqui, e cada morte ensinou uma coisa.** A
+primeira punha as três perguntas lado a lado: só servia para quem já sabia o que
+cada pergunta significava, e essa pessoa não precisa da aba. A segunda virou
+assistente — uma pergunta por tela, resposta no fim —, correta e inerte: quem
+respondia não via nada acontecer com as seis. A terceira pôs um placar ao vivo ao
+lado do texto, e o placar de fato se mexia — mas o texto explicava tudo ao mesmo
+tempo e a página passou a **rolar**. Texto que tenta explicar tudo de uma vez não
+explica nada, e o que rola para fora não é lido.
 
-| Rodada | O que a resposta faz no placar |
-|---|---|
-| 1 · quem lê | troca a régua (hit@1 → hit@3 → hit@10) e **remonta as notas** — as barras crescem ou encolhem para a régua nova |
-| 2 · quanto dá para esperar | o relógio **risca da mesa** quem estoura o orçamento, com o motivo em cada linha (`383,2 ms · o limite é 5 ms`) |
-| 3 · que tipo de pergunta | vira a mesa: a nota deixa de ser a média das 37 e passa a ser a da família, e a tela lista o **de-para** de quem subiu e desceu (`Significado · 1º → 5º · 90,9% → 54,5%`) |
-| 4 · o resultado | quem ficou dentro da faixa de empate vai para o **mata-mata**: um critério por vez, quem passou, quem caiu e por quê, até sobrar uma. Termina em pódio |
+A quarta não é uma página animada: é um **vídeo**. `@remotion/player` toca uma
+composição React determinística por frame, com play, pausa, barra arrastável e
+capítulos — e o canvas é 1600×900 fixo, escalado para caber na janela. **A
+rolagem não foi consertada, ela deixou de ser possível**: o que não cabe no
+quadro não existe, e isso aparece na hora de escrever a cena, não no dia em que
+alguém abre num monitor menor.
+
+| Cena | Quanto dura | O que ela e só ela mostra |
+|---|---|---|
+| As seis | 2,7 s | as competidoras entram com a barra **a zero** — para que a rodada 1 seja vista preenchendo |
+| Quem lê | 3,8 s | a régua troca (hit@1 → hit@3 → hit@10) e as notas **remontam** |
+| Tempo | 3,8 s | o relógio risca quem estoura o orçamento, com o motivo na linha (`383,2 ms · o limite é 5 ms`) |
+| Pergunta | 4,3 s | a nota deixa de ser a média das 37 e passa a ser a da família — o placar **reordena** |
+| Empate | 3,3 s | quantas ficaram dentro de 2,7 pontos. Só existe se houver empate |
+| Mata-mata | 3,5 s **por critério** | um critério por cena: quem entrou, quem passou, quem caiu e por quê |
+| Campeã | 5,0 s | o placar dá lugar ao pódio, com a frase que diz o que de fato decidiu |
+
+Duração total **medida**, ponta a ponta nos 27 cenários: **19,7 s** no mais curto
+(`few|instant|conceptual`, 5 cenas, sem empate) e **33,5 s** no mais longo
+(`llm|patient|literal`, 9 cenas, mata-mata de três critérios).
+
+Cada cena tem **um** assunto e **uma** linha de legenda. É a regra que substituiu
+o painel de texto da versão anterior: quando a legenda não cabe numa linha, não é
+a fonte que está grande — é a cena que está tentando dizer duas coisas.
+
+O roteiro e o desenho são arquivos **separados**, e isso não é organização, é
+testabilidade:
+
+```
+frontend/src/video/
+├── scenes.js       ROTEIRO — payload → lista de cenas. Código puro, sem frame
+└── Tournament.jsx  DESENHO — um quadro a partir do frame. Não calcula nota
+```
+
+`scenes.js` decide **o que** cada cena diz e **quando** ela entra; `Tournament.jsx`
+recebe `scenes[i]` e o frame atual, e só interpola. Misturar os dois produz a
+composição de 600 linhas em que a regra de negócio some no meio do `interpolate`
+— e nenhuma das duas partes fica conferível sozinha.
 
 O mata-mata é o coração do "por que ela ganhou": a campeã quase nunca vence por
 acertar mais — ela vence **por critério de engenharia dentro de um empate que a
@@ -766,10 +811,13 @@ nota não resolve**. Antes isso era uma frase de três linhas que ninguém lia.
 A regra tem três degraus, nesta ordem:
 
 1. **corta quem estoura o tempo** — `p50` acima do orçamento sai da disputa,
-   mesmo acertando mais. Aparece na tela em cinza, com o motivo escrito;
+   mesmo acertando mais. Na cena em que cai, a linha fica **vermelha** com o
+   motivo escrito; das cenas seguintes em diante, riscada, apagada e sem número:
+   o lugar da nota passa a dizer `fora`, porque quem já caiu não tem mais direito
+   de exibir um número que não vai disputar;
 2. **acha a faixa de empate** — com 37 perguntas medidas, **uma** pergunta vale
    `1/37` = **2,7 pontos**. Quem estiver a menos disso da líder não está atrás:
-   está empatado, e ganha o selo `empatada` no placar;
+   está empatado, e a cena de empate acende exatamente essas linhas;
 3. **desempata por engenharia, não por nota** — dentro da faixa a nota não
    distingue nada, então vence quem (a) devolve a lista cheia, (b) não tem nada
    para calibrar, (c) responde mais rápido — nesta ordem.
@@ -792,21 +840,32 @@ ordem do desempate**. Ordenada por nota, ela colocava a `weighted` (117,8 ms) em
 1º e a vencedora `rrf` (119,7 ms) em 2º — na mesma tela que explica por que a
 `rrf` ganhou.
 
-**A animação carrega significado, não enfeite.** No placar quem faz o trabalho é
-a prop `layout` do `motion`: ela mede a posição antes, mede depois e interpola —
-é FLIP, e é o que não dá para fazer à mão sem reimplementar FLIP. Sem ela a
-rodada 3 trocaria seis linhas de lugar num quadro só, e "as notas mudaram"
-deixaria de ser notícia; com ela, dá para **ver** o denso descer da 1ª para a 5ª.
-As etapas do mata-mata nascem escalonadas, e todas no DOM — não atrás de um botão
-"próximo", porque atrás do botão o print pega só a primeira, e texto que ninguém
-fotografa é texto que envelhece errado. `prefers-reduced-motion: reduce` desliga
-o caminho e mantém o estado final — quem pediu menos movimento não pode perder
-informação; é também o que torna os prints determinísticos (armadilha 27).
+**A animação carrega significado, não enfeite.** A rodada 3 troca seis linhas de
+lugar; num quadro só, "as notas mudaram" deixaria de ser notícia. Com o
+deslocamento animado dá para **ver** o denso descer da 1ª para a 5ª.
+
+A versão anterior conseguia isso com a prop `layout` do `motion` — FLIP de
+verdade: mede a posição antes, mede depois, interpola. Na composição não existe
+"antes": o quadro `n` é uma função pura de `n`, e um FLIP que mede o DOM
+devolveria um pixel diferente conforme a máquina estivesse ocupada. O que
+substitui é determinístico e mais simples de auditar: a **ordem de render é fixa**
+(sempre a mesma sequência de `name`, o que faz o React reaproveitar cada linha), e
+a posição sai de `translateY(pos × 78 px)` com `pos` interpolado entre a cena
+anterior e a atual. Nota, opacidade e o esmaecimento de quem caiu passam pela
+mesma interpolação. Mesma leitura na tela, e o print do frame 34 de um capítulo é
+sempre o mesmo arquivo.
+
+O que **não** mudou é a razão pela qual todas as etapas do mata-mata têm capítulo
+próprio: a primeira versão as agrupava num botão só, para a barra não virar
+fileira de botões de 3 s. O efeito colateral foi pior que o problema — sem
+capítulo próprio, as cenas que de fato **decidem** a campeã só existem enquanto o
+vídeo toca, e o que print não alcança quebra calado (armadilha 19). Com empate são
+8 botões no máximo, e eles cabem na largura.
 
 ### O terceiro canário: a tela também mente ✅ medido
 
 Tela é a parte que ninguém testa — abre bonita e mente calada. `task web:check`
-faz **146 asserções** em 10 seções contra o servidor no ar, sem browser, e não
+faz **147 asserções** em 10 seções contra o servidor no ar, sem browser, e não
 aborta na primeira falha (uma rodada mostra tudo que está quebrado). Ele pega
 três coisas que passam por qualquer olhada:
 
@@ -854,10 +913,11 @@ E ele deixou passar coisa pior: uma prop indefinida (`explain`, passada ao
 componente errado) derrubou o render da **aba inteira**. O canário seguiu com
 `erros: 0` — o servidor estava íntegro, quem quebrou foi o JS depois do 200 —, e
 o defeito só apareceu porque o print da aba de busca saiu **em branco**. O sinal
-barato disso é o tamanho do arquivo: os PNG desta tela nunca descem de 200 kB, e
-o branco deu 10 979 B. Por isso `task web:shots` hoje falha (`rc=1`) quando um
-print fica abaixo de 60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000`
-ele acusa **12 dos 15** e sai `rc=1` — canário que nunca apita não está medindo.
+barato disso é o tamanho do arquivo: o menor PNG desta tela tem 129 642 B
+(`video-sem-empate`) e o branco deu 10 979 B — uma ordem de grandeza de folga.
+Por isso `task web:shots` hoje falha (`rc=1`) quando um print fica abaixo de
+60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000` ele acusa **15 dos
+18** e sai `rc=1` — canário que nunca apita não está medindo.
 
 E os prints continuam pegando o que nenhuma asserção pega. Cinco defeitos desta
 última rodada só apareceram **olhando o PNG**, todos com canário verde:
@@ -869,6 +929,15 @@ E os prints continuam pegando o que nenhuma asserção pega. Cinco defeitos dest
 | selo `empatada` já na **rodada 1** | `tied` é conclusão da rodada 4: fala da nota do tipo de pergunta escolhido. Marcado antes, o selo dizia que duas empatam num número que nem é o do cenário |
 | faixa listrada de empate **invisível** | ela vale 2,7 pontos num track de 74 px = 2 px de listra. Decoração que ninguém enxerga fingindo ser informação — quem carrega o empate no placar é o selo, que é legível |
 | “a menos de 2,7 pontos” **quatro vezes** na mesma coluna | com quatro empatadas o mesmo texto repetido vira textura, não informação. O número é dito uma vez, no cabeçalho do placar |
+
+E a rodada do vídeo rendeu mais quatro, no mesmo regime de canário verde:
+
+| O que o print mostrou | Causa |
+|---|---|
+| uma eliminada do mata-mata **verde de novo**, com a nota inteira, na etapa seguinte | o `ranked` do back-end só marca quem saiu por **tempo**. Cada etapa precisa herdar as eliminações das anteriores — sem isso a linha derrubada em “Calibrar” volta a disputar em “Relógio”, exibindo um número a que já não tem direito. Um `Set` acumula quem caiu, e a cena reescreve `eliminated` antes de desenhar |
+| `Palavra · simples · Palavra · com peso saem` — lê como **quatro** nomes | o rótulo curto já usa `·` como separador interno (foi a correção do nome repetido, duas linhas acima). Juntar duas eliminadas com `·` ressuscita a mesma ambiguidade na legenda. Hoje é `e` para duas, e a contagem para três ou mais — quem saiu está em vermelho logo acima |
+| legenda em **duas linhas**, a segunda por cima da última linha do placar | legenda é linha única por contrato (`nowrap`), e o corpo cai de 38 px para 30 px acima de 62 caracteres. O canário ganhou teto de 100 chars — **medido**: a legenda mais longa de hoje tem 62 chars e ocupa 812 px dos 1488 px úteis, ou 13,1 px por caractere |
+| `1 saem por tempo`, `1 das 6 chegam` | frase montada com contagem e verbo fixo. Só se manifesta no dia em que a contagem cai para 1 — que é justamente o cenário mais interessante. O canário varre o payload **inteiro** serializado com um regex de plural, porque a frase pode nascer em qualquer rodada, célula ou etapa |
 
 Nenhum desses quebra rota, contrato ou soma. Todos quebram a tela.
 
@@ -903,14 +972,18 @@ src/retrieval_poc/
 ├── report.py                  results/REPORT.md
 └── cli.py                     corpus · index · verify · eval · experiments · report · query
 
-frontend/                      React 19 + Vite + Kumo — fonte da tela, dependência
-                               de BUILD (o pacote Python não precisa de Node)
+frontend/                      React 19 + Vite 6 + Kumo — fonte da tela, dependência
+│                              de BUILD (o pacote Python não precisa de Node)
+└── src/video/                 composição Remotion da aba "Qual devo usar?"
+    ├── scenes.js              ROTEIRO — payload → cenas. Código puro, sem frame
+    └── Tournament.jsx         DESENHO — um quadro a partir do frame
 
 tools/check_readme.py          canário da documentação (fora do pacote: não é
 tools/web_check.py             parte da PoC, é quem audita a PoC — texto e tela)
 ```
 
-**3 406 linhas de Python**, 16 scripts numerados em `scripts/` (`00-setup` a
+**3 482 linhas de Python** em `src/`, 2 667 de front em `frontend/src/` (617 delas
+na composição de vídeo), 16 scripts numerados em `scripts/` (`00-setup` a
 `15-web-restart`), e um `Taskfile.yaml`
 que chama script — nunca comando ad-hoc.
 

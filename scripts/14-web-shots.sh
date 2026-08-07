@@ -58,40 +58,50 @@ shot() {
 # A aba de entrada é a recomendação, então a URL sem parâmetro nenhum já cai
 # nela — e é justamente o cenário mais comum (lê o primeiro resultado, espera um
 # clique, perguntas misturadas).
-# 900 px é altura de tela, não de página: o assistente foi feito para caber sem
-# rolar, e um print alto esconderia justamente a falha que importa aqui. Se o
-# passo vazar, aparece cortado no PNG — que é o sinal que se quer ver.
-WIZARD_H=900
-shot recomendacao ""                            "$WIZARD_H"
-# Cada passo tem um desenho diferente. Um print só provaria que o primeiro
-# desenhou — os outros três renderizam num ramo de código que nunca teria sido
-# olhado. `?step=` é 1-based na URL.
-shot passo-tempo     "?step=2"                  "$WIZARD_H"
-shot passo-perguntas "?step=3"                  "$WIZARD_H"
-shot passo-resposta  "?step=4"                  "$WIZARD_H"
-# As três respostas do escolhedor são estado de URL. Sem isso, o print só
-# pegaria o cenário inicial e a parte interativa da aba ficaria sem prova
-# nenhuma: este print tem que mostrar OUTRA vencedora que o `passo-resposta`.
-shot recomendacao-llm "?reader=llm&budget=patient&kind=conceptual&step=4" "$WIZARD_H"
-# Os cinco abaixo cobrem os ramos do jogo que o cenário de entrada NÃO passa. Cada
-# um existe porque o código que ele desenha só roda naquele cenário — e código de
-# tela que nunca é fotografado é código que quebra sem ninguém ver.
-#
-# Corte em massa: o relógio de 5 ms derruba 4 das 6 e o placar fica com quatro
-# linhas riscadas. Nos outros orçamentos cai 1 ou nenhuma, então o desenho da
+# 900 px é altura de TELA, e é a única altura que faz sentido aqui: o vídeo
+# dimensiona o próprio palco a partir de `100vh`. Um print alto daria um palco
+# alto e esconderia exatamente a falha que se procura — conteúdo que não coube.
+VIDEO_H=900
+# `--force-prefers-reduced-motion` deixa o player PARADO no frame do capítulo
+# (ver `Advice.jsx`), então cada print abaixo é um quadro determinístico: o
+# mesmo `?step=` devolve sempre o mesmo pixel, hoje e daqui a um mês.
+shot video-abertura  ""                         "$VIDEO_H"
+# Um capítulo por print. Cada cena desenha um ramo diferente da composição — a
+# rodada 2 é a única com linha eliminada, a 3 é a única em que o placar reordena,
+# e a última troca o placar inteiro pelo pódio. Um print só provaria a abertura.
+# `?step=` é 1-based na URL.
+shot video-quem-le   "?step=2"                  "$VIDEO_H"
+shot video-tempo     "?step=3"                  "$VIDEO_H"
+shot video-pergunta  "?step=4"                  "$VIDEO_H"
+shot video-desempate "?step=5"                  "$VIDEO_H"
+# Os critérios do mata-mata são as cenas que de fato ELEGEM a campeã. Enquanto
+# cabiam num capítulo só, nenhum print as alcançava — e o que print não alcança
+# quebra calado. O cenário padrão decide em duas etapas (`starved`, `tuning`);
+# a terceira só aparece quando as duas primeiras empatam, e quem cobre isso é o
+# `video-criterio3`, com um cenário escolhido para chegar lá.
+shot video-criterio1 "?step=6"                  "$VIDEO_H"
+shot video-criterio2 "?step=7"                  "$VIDEO_H"
+shot video-criterio3 "?reader=llm&budget=patient&kind=conceptual&step=8" "$VIDEO_H"
+# `?step=9` é o teto de `STEP_IDS` e clampa no último capítulo de QUALQUER
+# cenário — 8 quando o desempate tem duas etapas, 9 quando tem três, 5 quando
+# não há empate. Fixar o número exato aqui exigiria saber de antemão quantas
+# etapas cada cenário produz, que é justamente o que muda quando o corpus muda.
+shot video-campea    "?step=9"                  "$VIDEO_H"
+# As três escolhas são estado de URL. Sem isto o print só cobriria o cenário de
+# entrada, e a parte que reage à escolha ficaria sem prova: este tem que mostrar
+# OUTRA campeã que o `video-campea`.
+shot video-llm       "?reader=llm&budget=patient&kind=conceptual&step=9" "$VIDEO_H"
+# Corte em massa: o relógio de 5 ms derruba 4 das 6 e a cena fica com quatro
+# linhas em vermelho. Nos outros orçamentos cai 1 ou nenhuma, então o desenho da
 # eliminação em bloco não apareceria em print nenhum.
-shot jogo-corte        "?reader=first&budget=instant&step=2" "$WIZARD_H"
-# Seis trocam de lugar — é o cenário em que a lista de de-para tem o que mostrar.
-shot jogo-trocas       "?reader=first&budget=instant&kind=literal&step=3" "$WIZARD_H"
-# E o oposto: ninguém troca. A tela diz isso com todas as letras em vez de ficar
-# muda, e é um ramo diferente do mesmo passo.
-shot jogo-sem-trocas   "?reader=llm&budget=click&kind=literal&step=3" "$WIZARD_H"
-# O mata-mata com as três etapas abertas. 1100 px porque aqui a altura da página
-# é o conteúdo — cortar em 900 esconderia justamente a etapa que decide.
-shot jogo-mata-mata    "?reader=first&budget=instant&kind=literal&step=4" 1100
-# Vencedora sem empate: nenhum mata-mata, e a tela precisa explicar a ausência.
-# Sem este print, o texto do caso "a nota decidiu sozinha" nunca é conferido.
-shot jogo-sem-empate   "?reader=first&budget=click&kind=conceptual&step=4" "$WIZARD_H"
+shot video-corte     "?reader=first&budget=instant&step=3" "$VIDEO_H"
+# Seis trocam de lugar — é o cenário em que a reordenação do placar tem o que
+# mostrar, e é a cena que dá nome à PoC inteira.
+shot video-trocas    "?reader=first&budget=instant&kind=literal&step=4" "$VIDEO_H"
+# Vencedora sem empate: o roteiro pula a cena de desempate e o mata-mata inteiro,
+# então os capítulos são CINCO. `?step=6` clampa no último — se um dia o clamp
+# sumir, este print é quem acusa.
+shot video-sem-empate "?reader=first&budget=click&kind=conceptual&step=9" "$VIDEO_H"
 shot busca        "?tab=search"                 1700
 shot documento    "?tab=document&doc=ch_5506"   1500
 shot placar       "?tab=score"                  1000

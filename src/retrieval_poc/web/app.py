@@ -620,7 +620,33 @@ def _round_reader(rows: list[dict], reader: dict) -> dict:
             f"“{hardest['label']}” é quem mais sofre: cai {hardest['drop']:.1f} pontos "
             f"em relação a olhar os dez. O placar se remonta inteiro."
         )
-    return {"metric": metric, "board": board, "spread": spread, "headline": headline}
+    # A mesma notícia em uma linha, para o vídeo.
+    #
+    # O `headline` acima tem 3 a 4 linhas — no player ele vira parede de texto que
+    # ninguém termina antes de a cena virar. Encurtar no front seria recalcular
+    # número em dois lugares; escrever aqui mantém a fonte única, e o limite de
+    # comprimento vira asserção do canário em vez de disciplina.
+    if metric == BASELINE_METRIC:
+        # A concordância é calculada, não presumida: o número de estratégias que
+        # cravam 100% depende do corpus, e “1 das 6 chegam” é o tipo de erro que
+        # aparece só no dia em que o corpus muda — quando ninguém está olhando
+        # esta linha.
+        perfect = sum(1 for item in board if item["value"] >= 1.0)
+        caption = (
+            f"{perfect} das {len(board)} {'chegam' if perfect != 1 else 'chega'} "
+            "a 100% — a régua mais frouxa"
+        )
+    elif hardest["drop"] <= 0:
+        caption = "Ninguém perde nota com esta régua"
+    else:
+        caption = f"{STRATEGY_SHORT[hardest['name']]} perde {hardest['drop']:.1f} pontos"
+    return {
+        "metric": metric,
+        "board": board,
+        "spread": spread,
+        "headline": headline,
+        "caption": caption,
+    }
 
 
 def _budget_seats(rows: list[dict], metric: str, budget_ms: float) -> dict[str, int]:
@@ -689,12 +715,23 @@ def _round_budget(rows: list[dict], reader: dict, budget: dict) -> dict:
     # `out` sai na MESMA ordem do placar, e não na ordem em que `rows` chegou:
     # os dois desenham a mesma eliminação, e ordens diferentes fazem a lista de
     # quem caiu contradizer as linhas riscadas logo ao lado. Pego pelo canário.
+    if not out:
+        caption = f"Ninguém sai — {budget['ms']:.0f} ms é folga para as {len(rows)}"
+    elif not alive:
+        caption = f"As {len(rows)} estouram {budget['ms']:.0f} ms"
+    elif len(out) == 1:
+        # Uma só: dizer QUAL saiu vale mais que dizer que saiu uma — e ainda
+        # resolve a concordância, que “1 saem por tempo” quebrava na tela.
+        caption = f"{STRATEGY_SHORT[out[0]['name']]} sai — estourou {budget['ms']:.0f} ms"
+    else:
+        caption = f"{len(out)} saem por tempo — o limite é {budget['ms']:.0f} ms"
     return {
         "ms": budget["ms"],
         "board": sorted(alive + out, key=lambda item: seats[item["name"]]),
         "alive": [item["name"] for item in alive],
         "out": sorted(out, key=lambda item: seats[item["name"]]),
         "headline": headline,
+        "caption": caption,
     }
 
 
@@ -835,6 +872,8 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
                 f"Não sobrou ninguém para trocar de lugar: o limite de {budget_ms:.0f} ms "
                 "tirou as seis da mesa na rodada anterior."
             ),
+            "swap_caption": f"Ninguém sobrou: {budget_ms:.0f} ms tirou as seis",
+            "why_caption": f"Sem campeã — nenhuma responde em {budget_ms:.0f} ms",
             "podium": [],
         }
 
@@ -880,6 +919,11 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         # aqui produzia a contradição de anunciar "devolve a lista cheia" logo
         # acima do aviso de que ela devolve 10 listas curtas.
         reasons = []
+        # A mesma lista em versão de legenda, montada **nas mesmas linhas** que a
+        # longa. Duas listas construídas em blocos separados divergem no dia em
+        # que alguém acrescenta um critério a um só; lado a lado, esquecer uma é
+        # difícil de não ver.
+        short_reasons = []
         worst_starved = min(row["starved"] for row in losers)
         if winner["starved"] < worst_starved:
             # "A única que devolve a lista cheia" só vale se ela devolve mesmo.
@@ -893,10 +937,17 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
                 else f"devolve lista curta em {winner['starved']} perguntas, "
                 f"contra {worst_starved} da melhor concorrente"
             )
+            short_reasons.append(
+                "é a única que devolve a lista cheia"
+                if winner["starved"] == 0
+                else "devolve menos listas curtas"
+            )
         if winner["tuning_free"] and any(not row["tuning_free"] for row in losers):
             reasons.append("não tem nada para calibrar")
+            short_reasons.append("não tem nada para calibrar")
         if winner["p50"] < min(row["p50"] for row in losers):
             reasons.append(f"responde em {winner['p50']:.1f} ms, o menor tempo entre elas")
+            short_reasons.append(f"é a mais rápida ({winner['p50']:.1f} ms)")
         # Enumeração com “e” antes da última, e cada nome entre aspas: quatro
         # nomes longos separados só por vírgula viram uma frase que ninguém
         # termina de ler — “empata com As duas juntas, somando notas, Busca por
@@ -996,6 +1047,29 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             "média geral. Acontece — o que não dá é contar com isso sem medir."
         )
 
+    # As mesmas duas notícias em uma linha cada, para o vídeo (ver `_round_reader`).
+    if moved:
+        worst = min(moved, key=lambda item: item["value"] - item["was"])
+        delta = (worst["was"] - worst["value"]) * 100
+        swap_caption = (
+            f"{STRATEGY_SHORT[worst['name']]} cai do {worst['from']}º ao {worst['to']}º — "
+            f"perde {delta:.1f} pontos"
+            if delta > 0
+            else f"{len(moved)} trocam de lugar, e ninguém piora"
+        )
+    else:
+        swap_caption = "Ninguém troca de lugar neste tipo de pergunta"
+    # `short_reasons` é a lista dos critérios que de fato distinguiram, na ordem
+    # em que foram aplicados — o primeiro é o que decidiu. Só ele vai para a
+    # legenda: citar todos devolve a frase longa que o vídeo não comporta. O
+    # `and` faz short-circuit e é o que segura o `NameError`, porque a lista só
+    # nasce dentro do `if losers`.
+    why_caption = (
+        f"{STRATEGY_SHORT[winner['name']]} ganha: {short_reasons[0]}"
+        if losers and short_reasons
+        else f"{STRATEGY_SHORT[winner['name']]} ganha sozinha, sem empate"
+    )
+
     return {
         "winner": winner["name"],
         "value": winner["value"],
@@ -1007,6 +1081,8 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         "tiebreak": tiebreak,
         "moved": moved,
         "swap": swap,
+        "swap_caption": swap_caption,
+        "why_caption": why_caption,
         # O pódio do jogo: as três primeiras que ainda estão de pé. Sai daqui e
         # não do `ranked[:3]` no front porque eliminada não sobe ao pódio nem
         # quando sobram menos de três de pé — nesse caso o pódio é curto mesmo.

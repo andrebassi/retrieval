@@ -78,6 +78,9 @@ src/retrieval_poc/
 └── cli.py              subcomandos, um por etapa do pipeline
 
 frontend/               React 19 + Vite 6 + @cloudflare/kumo — fonte da tela
+│   └── src/video/      composição Remotion da aba “Qual devo usar?”
+│       ├── scenes.js       ROTEIRO — payload → lista de cenas. Código puro, sem frame
+│       └── Tournament.jsx  DESENHO — um quadro a partir do frame. Não calcula nota
 tools/web_check.py      canário do front, sem browser
 ```
 
@@ -109,8 +112,8 @@ task query -- "P-101 aquecendo acima do normal"
 task web:build         # compila o front para src/retrieval_poc/web/static
 task web               # tela em http://127.0.0.1:8081 (compila se faltar bundle)
 task web:restart       # reinicia em segundo plano e espera o 200 — o servidor NÃO tem reload
-task web:check         # CANÁRIO do front — 146 asserções, 10 seções, sem browser
-task web:shots         # 15 prints (exige 'task web' de pé); falha se algum sair em branco
+task web:check         # CANÁRIO do front — 147 asserções, 10 seções, sem browser
+task web:shots         # 18 prints (exige 'task web' de pé); falha se algum sair em branco
 task clean             # apaga corpus e resultados, mantém o banco
 ```
 
@@ -156,6 +159,13 @@ task "passa".
 | 32 | Faixa listrada de empate **invisível** no placar | a faixa vale 2,7 pontos e o track tem 74 px — 2 px de listra. Decoração que ninguém enxerga fingindo ser informação | tirar a faixa **deste** placar (ela continua certa nas barras largas das outras telas) e deixar o selo `empatada` carregar o empate. Legibilidade decide o veículo, não a consistência visual |
 | 33 | “a menos de 2,7 pontos” repetido **4×** na mesma coluna | o número estava no selo de cada linha empatada; com quatro empatadas vira textura, não informação | o número é dito **uma vez**, no cabeçalho do placar. O selo fica só com a palavra, e o valor sobrevive no `title` |
 | 34 | Corrigi `app.py`, conferi a tela, e o defeito continuava lá | o servidor sobe **sem reload** (`uvicorn` sem `--reload`, de propósito: reload perde o estado do pool). Conferir a tela contra um processo antigo é o jeito mais rápido de "provar" que um defeito foi corrigido quando ele nem chegou a ser servido | `task web:restart` — `pkill` + `nohup` + espera o `200`. Restart ad-hoc falhou duas vezes na mão (`exit 7` com a tela ainda subindo, `kill: No such process`), que é exatamente por que isso virou script numerado |
+| 35 | A aba "Qual devo usar?" **rola**, e o usuário rejeitou a entrega por isso | placar ao vivo + texto explicando tudo ao lado: cada acréscimo empurrava a página, e ninguém percebe rolagem enquanto está desenvolvendo com a janela alta | a aba virou **composição Remotion** tocada no `@remotion/player`. Canvas 1600×900 fixo que o Player **escala** para o container: cabe em qualquer janela por construção, não por ajuste de CSS. E ganha o que o pedido queria — linha do tempo, play/pausa, arrastar |
+| 36 | A altura do palco de vídeo tem que sair de uma conta, e as duas primeiras contas erraram | `calc(100vh - 290px)` cortou os controles do player e os capítulos; `- 422px` comeu a 2ª linha da ficha técnica | `min(largura em 16:9, calc(100svh - 448px))` + `aspect-ratio`. Os 448 foram **medidos em dois PNGs de 1440×900** (cabeçalho 304 + capítulos 40 + vão 14 + rodapé 36 + margem 16), nunca estimados. `svh` e não `vh`: no celular `vh` é a altura com a barra de endereço recolhida, então a conta dá palco maior que a tela e a rolagem volta |
+| 37 | Cena que decide a campeã **não aparece em print nenhum** | as três etapas do mata-mata cabiam num capítulo só, para a barra não virar fileira de botões de 3 s. Sem capítulo próprio, elas só existem enquanto o vídeo toca — e `--screenshot` não alcança | **toda cena vira capítulo** (`CHAPTER_LABEL` em `scenes.js`), `STEP_IDS` com 9 ids, e 3 prints novos. Com empate são 8–9 botões e eles cabem numa linha. O que print não alcança quebra calado (armadilha 19) |
+| 38 | A eliminada reaparece **verde e com a nota inteira** na cena seguinte | o `ranked` do back-end só marca quem saiu por **tempo**; quem cai por critério do mata-mata não fica marcado nas etapas posteriores. E opacidade sozinha não distingue "eliminada" de "não é o assunto desta cena" | duas coisas juntas: `gone` acumula os eliminados ao longo das etapas (`boardNow()` em `scenes.js`), e a linha ganha marca própria — rótulo `fora`, cor vermelha e **percentual riscado**. Riscado e não apagado: ela acerta mesmo aqueles 100%, só que estourando o relógio — apagar esconderia o que torna o corte interessante |
+| 39 | `1 saem por tempo`, `1 das 6 chegam`, `1 passam` | verbo fixo em frase montada com contagem. Só se manifesta quando a contagem cai para **1** — que é justo o cenário mais interessante (uma eliminada, uma que passa) | concordância derivada da contagem, e asserção no `web_check.py` varrendo o payload **inteiro** serializado: `\b1 (saem\|chegam\|passam\|entram\|…)\b`. Cobrir campo por campo deixaria de fora o próximo campo que alguém acrescentar |
+| 40 | Legenda do vídeo com **duas linhas**: a segunda sobe por cima da última linha do placar | caption de 89 chars listando as empatadas pelo nome | `white-space: nowrap` + corpo que cede (38 px → 30 px acima de 62 chars) + caption encurtada. Reticências foram descartadas de propósito: esconderiam o **final** da frase, que é onde mora a conclusão (armadilha 30). O preço do `nowrap` é que o excesso sai pela borda e o `overflow: hidden` o engole — falha silenciosa, então virou asserção (teto de 100 chars, medido: 62 chars ocupam 812 px dos 1488 úteis) |
+| 41 | `Palavra · simples · Palavra · com peso saem` lê como **quatro** nomes | o rótulo curto já usa `·` como separador interno (armadilha 30), e a legenda juntava as eliminadas com o mesmo `·` | juntar com `e` quando são duas; com três ou mais, dizer a **contagem** — nomear todas estoura a linha única, e quem saiu está em vermelho no placar logo acima |
 
 ## Como interpretar os resultados
 

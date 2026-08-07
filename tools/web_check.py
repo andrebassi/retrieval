@@ -241,6 +241,28 @@ if blocks:
     total = sum(len(b["cases"]) for b in blocks["blocks"])
     print(f"  ℹ️  {total} casos no total (um mesmo caso pode aparecer em 2 blocos)")
 
+def check_caption(text: str, where: str) -> list[str]:
+    """Uma legenda do vídeo cabe numa linha, ou desaparece sem avisar.
+
+    A composição usa `white-space: nowrap` — dobrar a linha faria a segunda subir
+    por cima da última linha do placar, que foi o defeito que motivou o `nowrap`.
+    O preço é que o excesso agora sai pela borda e o `overflow: hidden` do palco
+    o engole: legenda longa não quebra o layout, ela some pelo lado, que é falha
+    silenciosa e por isso mora aqui.
+
+    O teto de 100 é MEDIDO, não estimado: a legenda mais longa hoje (62 chars,
+    `first|click|literal`) ocupa 812 px dos 1488 px úteis a 38 px de corpo — 13,1
+    px por caractere. A composição cai para 30 px acima de 62 chars, o que estica
+    o limite físico para ~144. 100 é o meio-termo com folga para caractere largo.
+    """
+    problems = []
+    if not text:
+        problems.append(f"{where} sem legenda — a cena fica muda")
+    elif len(text) > 100:
+        problems.append(f"{where} com {len(text)} chars — passa de 100 e sai pela borda")
+    return problems
+
+
 print("\n== 9. /api/advice — a recomendação ==")
 advice = get_json("/api/advice")
 if advice:
@@ -292,6 +314,8 @@ if advice:
         # exatamente estes campos, e cada um já apareceu errado na tela.
         if not cell["swap"]:
             problems.append("rodada 3 sem frase — o placar se mexe e ninguém sabe por quê")
+        problems += check_caption(cell["swap_caption"], "legenda da rodada 3")
+        problems += check_caption(cell["why_caption"], "legenda da campeã")
         if not cell["podium"] or cell["podium"][0]["name"] != cell["winner"]:
             problems.append("o pódio não começa pela vencedora")
         # O mata-mata é uma sequência: cada etapa recebe quem passou da anterior,
@@ -350,6 +374,7 @@ if advice:
             problems.append("alguém eliminado numa rodada que não elimina ninguém")
         if not round_data["headline"]:
             problems.append("rodada sem frase")
+        problems += check_caption(round_data["caption"], "legenda da rodada 1")
         values = [row["value"] for row in round_data["board"]]
         if values != sorted(values, reverse=True):
             problems.append("placar fora de ordem")
@@ -374,12 +399,25 @@ if advice:
             problems.append("eliminada sem motivo escrito")
         if not round_data["headline"]:
             problems.append("rodada sem frase")
+        problems += check_caption(round_data["caption"], "legenda da rodada 2")
         require(not problems, f"rodada 2 · {key}" + (f" [{'; '.join(problems)}]" if problems else ""))
     require(
         len(advice["tiebreak_order"]) == 3
         and all(step["title"] and step["why"] for step in advice["tiebreak_order"]),
         "os 3 critérios do mata-mata chegam com título e motivo",
     )
+    # Concordância de plural em frase montada com contagem. “1 saem por tempo” e
+    # “1 das 6 chegam” apareceram na tela porque o verbo era fixo e o número não —
+    # o defeito só se manifesta no dia em que a contagem cai para 1, que é
+    # justamente o cenário mais interessante (uma eliminada, uma que passa). A
+    # varredura é sobre o payload inteiro serializado porque a frase pode nascer
+    # em qualquer rodada, célula ou etapa, e cobrir campo por campo deixaria de
+    # fora o próximo campo que alguém acrescentar.
+    plural_slips = re.findall(
+        r"\b1 (?:saem|chegam|passam|entram|competidoras|primeiras|estratégias)\b",
+        json.dumps(advice, ensure_ascii=False),
+    )
+    require(not plural_slips, f"nenhuma frase com “1” seguido de verbo no plural ({len(plural_slips)} achadas)")
 
 print(f"\n== erros: {errors} ==")
 sys.exit(1 if errors else 0)
