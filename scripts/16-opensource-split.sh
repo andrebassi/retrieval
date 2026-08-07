@@ -49,11 +49,33 @@ done < <(git -C "$MONOREPO" rev-list "$BRANCH")
 [ "$found" = "0" ] || { echo "🛑 $found commit(s) com segredo — NÃO publicar" >&2; exit 1; }
 echo "    limpo nos $count commits"
 
+# `subtree split` REESCREVE cada commit (árvore diferente, pai diferente), então o
+# SHA novo nasce sem assinatura — a do commit original cobre a árvore do monorepo,
+# não esta. Assinar de novo não é reescrever história publicada: esta branch ainda
+# não existe em lugar nenhum. Desligar a assinatura para "destravar" é o que a
+# rule 28 proíbe, e o histórico publicado é justamente onde o `Unverified` fica
+# para sempre.
+echo "==> reassinando os $count commits (a YubiKey precisa estar plugada)"
+WORKTREE="${SPLIT_WORKTREE:-$HOME/works/.retrieval-split-wt}"
+git -C "$MONOREPO" worktree remove --force "$WORKTREE" 2>/dev/null || true
+git -C "$MONOREPO" worktree prune
+git -C "$MONOREPO" worktree add --quiet "$WORKTREE" "$BRANCH"
+git -C "$WORKTREE" rebase --root --exec 'git commit --amend --no-edit -S' >/dev/null
+
 echo "==> conferindo a assinatura de cada commit"
-unsigned=$(git -C "$MONOREPO" log --format="%H %G?" "$BRANCH" | grep -cv " G$" || true)
-[ "$unsigned" = "0" ] \
-  && echo "    todos assinados" \
-  || echo "    ⚠️  $unsigned commit(s) sem assinatura boa (histórico antigo — não reescrever)"
+unsigned=$(git -C "$WORKTREE" log --format="%H %G?" | grep -cv " G$" || true)
+if [ "$unsigned" != "0" ]; then
+  echo "🛑 $unsigned commit(s) sem assinatura boa — NÃO publicar" >&2
+  git -C "$WORKTREE" log --format="%h %G? %s" | grep -v " G " >&2
+  exit 1
+fi
+echo "    todos os $count assinados"
+
+# A branch está *checked out* no worktree, então a `rebase` já a moveu — não cabe
+# `branch -f` aqui (o git recusa mexer em branch em uso, e é o certo). Só resta
+# devolver o worktree, senão a próxima execução esbarra no nome da branch já
+# reservada, e o erro aparece longe da causa.
+git -C "$MONOREPO" worktree remove --force "$WORKTREE"
 
 echo
 echo "pronto: branch '$BRANCH' em $MONOREPO"
