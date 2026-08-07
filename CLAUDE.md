@@ -78,9 +78,9 @@ src/retrieval_poc/
 └── cli.py              subcomandos, um por etapa do pipeline
 
 frontend/               React 19 + Vite 6 + @cloudflare/kumo — fonte da tela
-│   └── src/video/      composição Remotion da aba “Qual devo usar?”
-│       ├── scenes.js       ROTEIRO — payload → lista de cenas. Código puro, sem frame
-│       └── Tournament.jsx  DESENHO — um quadro a partir do frame. Não calcula nota
+│   └── src/Advice.jsx  a aba “Qual devo usar?”: cartão da campeã + lista das
+│                       outras cinco. NÃO calcula nota, nem desempate, nem frase —
+│                       tudo vem pronto de /api/advice (inclusive `verdict`)
 tools/web_check.py      canário do front, sem browser
 ```
 
@@ -113,7 +113,7 @@ task web:build         # compila o front para src/retrieval_poc/web/static
 task web               # tela em http://127.0.0.1:8081 (compila se faltar bundle)
 task web:restart       # reinicia em segundo plano e espera o 200 — o servidor NÃO tem reload
 task web:check         # CANÁRIO do front — 147 asserções, 10 seções, sem browser
-task web:shots         # 18 prints (exige 'task web' de pé); falha se algum sair em branco
+task web:shots         # 10 prints (exige 'task web' de pé); falha se algum sair em branco
 task clean             # apaga corpus e resultados, mantém o banco
 ```
 
@@ -162,10 +162,12 @@ task "passa".
 | 35 | A aba "Qual devo usar?" **rola**, e o usuário rejeitou a entrega por isso | placar ao vivo + texto explicando tudo ao lado: cada acréscimo empurrava a página, e ninguém percebe rolagem enquanto está desenvolvendo com a janela alta | a aba virou **composição Remotion** tocada no `@remotion/player`. Canvas 1600×900 fixo que o Player **escala** para o container: cabe em qualquer janela por construção, não por ajuste de CSS. E ganha o que o pedido queria — linha do tempo, play/pausa, arrastar |
 | 36 | A altura do palco de vídeo tem que sair de uma conta, e as duas primeiras contas erraram | `calc(100vh - 290px)` cortou os controles do player e os capítulos; `- 422px` comeu a 2ª linha da ficha técnica | `min(largura em 16:9, calc(100svh - 448px))` + `aspect-ratio`. Os 448 foram **medidos em dois PNGs de 1440×900** (cabeçalho 304 + capítulos 40 + vão 14 + rodapé 36 + margem 16), nunca estimados. `svh` e não `vh`: no celular `vh` é a altura com a barra de endereço recolhida, então a conta dá palco maior que a tela e a rolagem volta |
 | 37 | Cena que decide a campeã **não aparece em print nenhum** | as três etapas do mata-mata cabiam num capítulo só, para a barra não virar fileira de botões de 3 s. Sem capítulo próprio, elas só existem enquanto o vídeo toca — e `--screenshot` não alcança | **toda cena vira capítulo** (`CHAPTER_LABEL` em `scenes.js`), `STEP_IDS` com 9 ids, e 3 prints novos. Com empate são 8–9 botões e eles cabem numa linha. O que print não alcança quebra calado (armadilha 19) |
-| 38 | A eliminada reaparece **verde e com a nota inteira** na cena seguinte | o `ranked` do back-end só marca quem saiu por **tempo**; quem cai por critério do mata-mata não fica marcado nas etapas posteriores. E opacidade sozinha não distingue "eliminada" de "não é o assunto desta cena" | duas coisas juntas: `gone` acumula os eliminados ao longo das etapas (`boardNow()` em `scenes.js`), e a linha ganha marca própria — rótulo `fora`, cor vermelha e **percentual riscado**. Riscado e não apagado: ela acerta mesmo aqueles 100%, só que estourando o relógio — apagar esconderia o que torna o corte interessante |
+| 38 | A eliminada reaparece **verde e com a nota inteira** na cena seguinte | o `ranked` do back-end só marca quem saiu por **tempo**; quem cai por critério do mata-mata não fica marcado nas etapas posteriores. E opacidade sozinha não distingue "eliminada" de "não é o assunto desta cena" | remendado no front (um `Set` acumulando os eliminados por cena), e **esse foi o erro**: o payload continuou mentindo e produziu a armadilha 42. Hoje quem marca é o back-end. O que sobreviveu do remendo é a marca própria da linha — rótulo `fora` e cor vermelha, nunca só opacidade |
 | 39 | `1 saem por tempo`, `1 das 6 chegam`, `1 passam` | verbo fixo em frase montada com contagem. Só se manifesta quando a contagem cai para **1** — que é justo o cenário mais interessante (uma eliminada, uma que passa) | concordância derivada da contagem, e asserção no `web_check.py` varrendo o payload **inteiro** serializado: `\b1 (saem\|chegam\|passam\|entram\|…)\b`. Cobrir campo por campo deixaria de fora o próximo campo que alguém acrescentar |
 | 40 | Legenda do vídeo com **duas linhas**: a segunda sobe por cima da última linha do placar | caption de 89 chars listando as empatadas pelo nome | `white-space: nowrap` + corpo que cede (38 px → 30 px acima de 62 chars) + caption encurtada. Reticências foram descartadas de propósito: esconderiam o **final** da frase, que é onde mora a conclusão (armadilha 30). O preço do `nowrap` é que o excesso sai pela borda e o `overflow: hidden` o engole — falha silenciosa, então virou asserção (teto de 100 chars, medido: 62 chars ocupam 812 px dos 1488 úteis) |
 | 41 | `Palavra · simples · Palavra · com peso saem` lê como **quatro** nomes | o rótulo curto já usa `·` como separador interno (armadilha 30), e a legenda juntava as eliminadas com o mesmo `·` | juntar com `e` quando são duas; com três ou mais, dizer a **contagem** — nomear todas estoura a linha única, e quem saiu está em vermelho no placar logo acima |
+| 42 | O pódio exibe `rrf 100,0%`, `weighted 100,0%`, `ts_rank 100,0%` lado a lado — e **dois dos três já estavam eliminados** | `eliminated` significava "estourou o tempo", e o `podium` filtrava por ele. Quem cai no mata-mata seguia verde, com a nota inteira. O remendo da armadilha 38 escondeu isso por uma rodada inteira: a tela ficava certa **na cena**, e o payload seguia errado | marcar no **back-end**: `eliminated` = fora por qualquer motivo, `out_at` ∈ `{budget, tiebreak}` diz por qual, `podium` sai do payload. A marcação entra **depois** do `sort` final — antes, ela reordenaria as contendoras e quebraria a armadilha 24. Asserção nova cruza `tiebreak` com `ranked`; verificada invertendo: anulada a marcação, o canário acusa **23 dos 27 cenários** |
+| 43 | Formato errado sobrevive porque "está bonito" | a aba virou vídeo Remotion de 8 capítulos (armadilhas 35–37, 40, 41) para resolver a rolagem — e resolveu. Só que **ninguém assiste 20 a 34 s para saber qual estratégia usar**, e o palco de 800×450 num viewport de 1440×900 é espaço morto. A quantidade de trabalho investida no vídeo não o tornou a resposta certa | cartão + lista: escolhe as três opções e a resposta aparece. `remotion` + `@remotion/player` fora (−267 016 B de JS crus, −83 361 B gzipados, medido). As armadilhas 35–37, 40 e 41 continuam valendo como diagnóstico; o código que elas citam (`scenes.js`, `Tournament.jsx`, `.poc-vid-stage`) não existe mais |
 
 ## Como interpretar os resultados
 

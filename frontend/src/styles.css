@@ -680,20 +680,20 @@ pre,
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* ---------- aba “Qual devo usar?”: o vídeo ---------- */
+/* ---------- aba “Qual devo usar?”: a resposta ---------- */
 
-/* Aqui não há layout de conteúdo, e é essa a mudança.
+/* O que esta aba desenha hoje é uma resposta, não uma explicação.
  *
- * As versões anteriores desta aba desenhavam a explicação inteira em CSS —
- * trilha, cartões, mata-mata, placar lateral — e a soma disso passava da altura
- * da janela em toda janela real. O que sobrou é uma moldura de proporção fixa:
- * o vídeo mora dentro de um canvas 1600×900 que o Player escala, então o
- * conteúdo não tem como transbordar. O CSS daqui só posiciona a moldura, os
- * três seletores e a barra de capítulos.
+ * As versões anteriores tentaram caber a explicação inteira na tela — trilha,
+ * mata-mata, placar lateral — e a soma passava da altura da janela; a versão
+ * seguinte fugiu disso para dentro de um canvas de vídeo escalado, o que
+ * resolveu a rolagem e criou outro problema: ninguém assiste 30 s para saber
+ * qual usar.
  *
- * 1027 linhas de CSS morreram nessa troca. Nenhuma delas fazia falta: eram
- * todas arranjo de caixas para caber uma explicação que agora acontece no
- * tempo, e não no espaço. */
+ * Sem palco e sem capítulos sobra pouco CSS de propósito: os três seletores (que
+ * não mudaram de seletor), um cartão com o nome da campeã e uma lista de linhas.
+ * A rolagem deixa de ser problema por o conteúdo ser curto, não por conta de
+ * altura — é a primeira versão desta aba em que isso vale. */
 
 .poc-vid {
   display: flex;
@@ -752,95 +752,129 @@ pre,
   font-weight: 600;
 }
 
-/* A altura sai de uma conta, não de um palpite: é o menor entre "a largura
- * disponível em 16:9" e "o que sobra da janela". Com `aspect-ratio` junto, a
- * largura deriva da altura quando é a janela que aperta — e aí sobra margem
- * lateral em vez de faixa preta em cima e embaixo.
- *
- * Os 448 px descontados foram MEDIDOS em dois prints de 1440×900, não estimados:
- * cabeçalho da PoC e abas até o topo do palco dão 304, os capítulos 40, o vão
- * entre eles 14, o rodapé de ficha técnica 36 e a margem final 16. A primeira
- * tentativa descontou 290 e a página rolou — controles do player cortados e
- * capítulos abaixo da dobra; a segunda descontou 422 e ainda comeu a segunda
- * linha da ficha técnica. Cada número saiu de olhar o PNG, que é o único jeito
- * de saber onde a dobra caiu.
- *
- * `svh` e não `vh`: no celular, `vh` é a altura COM a barra de endereço
- * recolhida, então a conta dá um palco maior do que a tela realmente tem e a
- * rolagem volta justo onde ela mais incomoda. */
-.poc-vid-stage {
-  height: min(calc(min(100vw - 40px, 1400px) * 0.5625), calc(100svh - 448px));
-  aspect-ratio: 16 / 9;
-  margin: 0 auto;
-  border-radius: 16px;
-  overflow: hidden;
-  background: #0f1116;
+/* O cartão da resposta. Ele carrega a única coisa que a aba precisa dizer, então
+ * é a única caixa da tela com destaque — nome grande, número em seguida, motivo
+ * em duas linhas. */
+.poc-ans-card {
   border: 1px solid var(--line);
-}
-
-/* O rodapé de 64 px da página existe para as abas que rolam — nesta ele é a
- * diferença entre caber e não caber. Folga, não requisito: a conta acima já
- * fecha sem isto, e onde o `:has` não existir a tela continua inteira. */
-.poc-app:has(.poc-vid) {
-  padding-bottom: 16px;
-}
-
-.poc-vid-chapters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.poc-vid-chap {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
   background: var(--panel);
-  color: var(--muted);
-  font: inherit;
-  font-size: 0.82rem;
-  padding: 5px 12px 5px 5px;
-  border-radius: 999px;
-  cursor: pointer;
+  border-radius: 14px;
+  padding: 20px 24px;
 }
 
-.poc-vid-chap:hover {
-  color: var(--ink);
-}
-
-.poc-vid-chap-on {
-  border-color: var(--accent);
-  color: var(--ink);
-  font-weight: 600;
-}
-
-.poc-vid-chap-n {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--canvas);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.poc-ans-tag {
   font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.11em;
   font-weight: 700;
+  color: var(--accent);
+}
+
+/* `clamp` e não tamanho fixo: o rótulo curto mais longo tem 24 caracteres
+ * (“Duas juntas · notas + revisor”) e a janela estreita é onde ele dobraria. */
+.poc-ans-name {
+  margin: 4px 0 0;
+  font-size: clamp(1.4rem, 3.2vw, 2rem);
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.poc-ans-figures {
+  margin: 6px 0 0;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
-.poc-vid-chap-on .poc-vid-chap-n {
-  background: var(--accent);
-  color: #fff;
+.poc-ans-figures strong {
+  color: var(--ink);
 }
 
-/* O nome da cena corrente, à direita dos capítulos: o capítulo aceso diz
- * "Desempate", que não distingue qual dos três critérios está correndo. */
-.poc-vid-now {
-  margin-left: auto;
-  font-size: 0.82rem;
+/* Sem marcador: são duas afirmações, não uma enumeração. A lista existe só
+ * porque o back-end devolve 1 ou 2 frases e a quantidade é dele, não da tela. */
+.poc-ans-why {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.poc-ans-why li:first-child {
   color: var(--muted);
-  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.poc-ans-why li:last-child {
+  font-weight: 600;
+}
+
+.poc-ans-note {
+  margin: 12px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--line);
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
+/* As outras cinco. Grid de três colunas com o nome elástico: `1fr auto auto`
+ * mantém nota e observação alinhadas em coluna, que é o que deixa "fora" legível
+ * como coluna inteira em vez de palavra solta no meio da frase. */
+.poc-ans-rest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.poc-ans-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1.4fr);
+  gap: 6px 16px;
+  align-items: baseline;
+  padding: 10px 16px;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+
+.poc-ans-row:first-child {
+  border-top: 0;
+}
+
+.poc-ans-row-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poc-ans-row-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.poc-ans-row-note {
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+/* Quem saiu perde a cor e ganha a palavra — nunca o número. A versão de vídeo
+ * riscava a nota; aqui ela simplesmente não é escrita, porque exibir 100,0% ao
+ * lado de quem ainda disputa é a mentira que esta tela existe para corrigir. */
+.poc-ans-out .poc-ans-row-name {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.poc-ans-out .poc-ans-row-value {
+  color: var(--bad);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
 }
 
 .poc-good {

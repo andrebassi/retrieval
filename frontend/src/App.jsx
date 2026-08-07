@@ -38,7 +38,7 @@ import {
   fetchState,
 } from "./api.js";
 import { Failed, Loading, useAsync } from "./common.jsx";
-import { AdviceTab, DEFAULT_SCENARIO, DEFAULT_STEP, STEP_IDS } from "./Advice.jsx";
+import { AdviceTab, DEFAULT_SCENARIO } from "./Advice.jsx";
 
 // A recomendação vem primeiro e é a aba de entrada. A pergunta que sobrou
 // depois de tudo pronto foi “qual delas eu uso?” — se a resposta mora na quinta
@@ -734,16 +734,7 @@ function readUrl() {
       budget: params.get("budget") ?? DEFAULT_SCENARIO.budget,
       kind: params.get("kind") ?? DEFAULT_SCENARIO.kind,
     },
-    // O passo do assistente é escrito por humano na barra de endereço (`?step=3`
-    // é o quarto), então entra 1-based e sai clampeado: `?step=99` volta para o
-    // último em vez de renderizar tela vazia.
-    step: clampStep(Number(params.get("step")) - 1),
   };
-}
-
-function clampStep(value) {
-  if (!Number.isFinite(value)) return DEFAULT_STEP;
-  return Math.min(Math.max(Math.trunc(value), 0), STEP_IDS.length - 1);
 }
 
 export function App() {
@@ -755,7 +746,6 @@ export function App() {
   const [tab, setTab] = useState(initial.tab);
   const [docId, setDocId] = useState(initial.doc);
   const [scenario, setScenario] = useState(initial.scenario);
-  const [step, setStep] = useState(initial.step);
   const state = useAsync(() => fetchState(), []);
 
   // `replaceState` e não `pushState`: trocar de aba não é navegação, e encher o
@@ -772,12 +762,9 @@ export function App() {
     for (const [field, value] of Object.entries(scenario)) {
       if (value !== DEFAULT_SCENARIO[field]) params.set(field, value);
     }
-    // Mesma regra do cenário: só sai na URL quando não é o primeiro passo. E
-    // 1-based, porque quem digita `?step=2` quer o segundo, não o terceiro.
-    if (step !== DEFAULT_STEP) params.set("step", String(step + 1));
     const query = params.toString();
     window.history.replaceState(null, "", query ? `?${query}` : window.location.pathname);
-  }, [tab, docId, initial.explain, scenario, step]);
+  }, [tab, docId, initial.explain, scenario]);
 
   const pickDocument = useCallback((id) => {
     setDocId(id);
@@ -832,13 +819,7 @@ export function App() {
 
       <main>
         {tab === "advice" && (
-          <AdviceTab
-            explain={initial.explain}
-            scenario={scenario}
-            onScenario={setScenario}
-            step={step}
-            onStep={(next) => setStep(clampStep(next))}
-          />
+          <AdviceTab scenario={scenario} onScenario={setScenario} />
         )}
         {tab === "search" && (
           <SearchTab state={data} explain={initial.explain} onPickDocument={pickDocument} />

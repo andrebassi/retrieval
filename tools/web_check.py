@@ -242,18 +242,18 @@ if blocks:
     print(f"  ℹ️  {total} casos no total (um mesmo caso pode aparecer em 2 blocos)")
 
 def check_caption(text: str, where: str) -> list[str]:
-    """Uma legenda do vídeo cabe numa linha, ou desaparece sem avisar.
+    """Uma frase de uma linha cabe numa linha, ou não é de uma linha.
 
-    A composição usa `white-space: nowrap` — dobrar a linha faria a segunda subir
-    por cima da última linha do placar, que foi o defeito que motivou o `nowrap`.
-    O preço é que o excesso agora sai pela borda e o `overflow: hidden` do palco
-    o engole: legenda longa não quebra o layout, ela some pelo lado, que é falha
-    silenciosa e por isso mora aqui.
+    Vazia é o caso grave: a linha some da tela e nada acusa — o cartão fica com
+    um espaço em branco onde deveria estar a conclusão.
 
-    O teto de 100 é MEDIDO, não estimado: a legenda mais longa hoje (62 chars,
-    `first|click|literal`) ocupa 812 px dos 1488 px úteis a 38 px de corpo — 13,1
-    px por caractere. A composição cai para 30 px acima de 62 chars, o que estica
-    o limite físico para ~144. 100 é o meio-termo com folga para caractere largo.
+    O teto de 100 vem do vídeo que morreu, e continua valendo por outro motivo: a
+    legenda mais longa medida lá (62 chars, `first|click|literal`) ocupava 812 px
+    dos 1488 px úteis, 13,1 px por caractere. No cartão de hoje a linha quebra em
+    vez de sair pela borda, então o excesso não some — mas duas frases de 100+
+    chars empurram a lista para baixo da dobra, que é exatamente o defeito que
+    matou a terceira versão desta aba. O limite é o mesmo; o que ele protege
+    mudou.
     """
     problems = []
     if not text:
@@ -316,8 +316,38 @@ if advice:
             problems.append("rodada 3 sem frase — o placar se mexe e ninguém sabe por quê")
         problems += check_caption(cell["swap_caption"], "legenda da rodada 3")
         problems += check_caption(cell["why_caption"], "legenda da campeã")
-        if not cell["podium"] or cell["podium"][0]["name"] != cell["winner"]:
-            problems.append("o pódio não começa pela vencedora")
+        # O cartão da aba diz a conclusão em 1 ou 2 frases curtas. Vazia, a linha
+        # some sem erro; longa demais, ela empurra a lista para baixo da dobra —
+        # que é o defeito que matou a terceira versão da tela. O teto de 100 é o
+        # mesmo das legendas, e reusar o `check_caption` é de propósito: dois
+        # tetos diferentes divergiriam na primeira vez que alguém mexesse num.
+        if not 1 <= len(cell["verdict"]) <= 2:
+            problems.append(f"veredito com {len(cell['verdict'])} frases — tem que ser 1 ou 2")
+        for index, line in enumerate(cell["verdict"]):
+            problems += check_caption(line, f"frase {index + 1} do veredito")
+            if re.search(r"\*\*|`", line):
+                problems.append(f"Markdown cru na frase {index + 1} do veredito")
+        # `eliminated` significa **fora por qualquer motivo**, e `out_at` diz por
+        # qual. Sem o motivo escrito, a linha da lista mostra `fora` e mais nada.
+        for row in cell["ranked"]:
+            if row["eliminated"]:
+                if not row["reason"]:
+                    problems.append(f"{row['name']} está fora sem motivo escrito")
+                if row["out_at"] not in {"budget", "tiebreak"}:
+                    problems.append(f"{row['name']} fora com out_at={row['out_at']!r}")
+            elif row["out_at"] is not None:
+                problems.append(f"{row['name']} está viva e mesmo assim tem out_at")
+        # A asserção que teria pego o pódio mentiroso: quem caiu numa etapa do
+        # mata-mata continuava `eliminated: False`, com a nota inteira, e a tela
+        # exibia três `100,0%` lado a lado com dois deles já eliminados. Cruzar
+        # `tiebreak` com `ranked` é justamente o que a tela deixou de fazer.
+        for step in cell["tiebreak"]:
+            for out in step["out"]:
+                row = by_name.get(out["name"])
+                if row is None:
+                    problems.append(f"{out['name']} cai no mata-mata e não está no ranking")
+                elif not row["eliminated"] or row["out_at"] != "tiebreak":
+                    problems.append(f"{out['name']} cai no mata-mata e a lista não marca")
         # O mata-mata é uma sequência: cada etapa recebe quem passou da anterior,
         # e a última tem que terminar na vencedora. Etapa que "decide" sem tirar
         # ninguém é o defeito clássico — a tela mostra o critério e a lista igual.

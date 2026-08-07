@@ -857,7 +857,10 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
     if not eligible:
         # Sem ninguém dentro do orçamento não há desempate a fazer; a lista sai
         # na ordem de nota mesmo, só para a tela mostrar o quanto cada uma
-        # estourou o tempo.
+        # estourou o tempo. Nenhum dos 27 cenários chega aqui hoje — este ramo é
+        # a defesa para o corpus futuro em que o relógio derrube as seis.
+        for row in ranked:
+            row["out_at"] = "budget"
         return {
             "winner": None,
             "value": None,
@@ -865,6 +868,7 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             "ranked": ranked,
             "pipeline": [],
             "why": f"Nenhuma das seis responde em até {budget_ms:.0f} ms neste tipo de pergunta.",
+            "verdict": [f"Nenhuma responde em até {budget_ms:.0f} ms neste tipo de pergunta"],
             "notes": [],
             "tiebreak": [],
             "moved": [],
@@ -874,7 +878,6 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             ),
             "swap_caption": f"Ninguém sobrou: {budget_ms:.0f} ms tirou as seis",
             "why_caption": f"Sem campeã — nenhuma responde em {budget_ms:.0f} ms",
-            "podium": [],
         }
 
     # Dentro da faixa de uma pergunta **não existe ordem por nota** — declarar
@@ -913,6 +916,26 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             row["p50"],
         )
     )
+
+    # `eliminated` só marcava quem estourou o **tempo**, e a tela lê o campo como
+    # "está fora". Quem caía no mata-mata continuava verde, com a nota inteira: o
+    # cenário padrão exibia `rrf 100,0%`, `weighted 100,0%` e `ts_rank 100,0%`
+    # lado a lado — e as duas últimas já tinham sido eliminadas, uma em
+    # `tuning`, outra em `starved`. Aqui o booleano passa a valer "fora por
+    # qualquer motivo" e `out_at` diz por qual, para a tela não ter que cruzar
+    # `tiebreak` com `ranked` para saber quem ainda disputa.
+    #
+    # Depois do `sort` de propósito: ele usa `eliminated` como primeira chave, e
+    # marcar antes jogaria as contendoras derrotadas para o fim da lista, fora
+    # da ordem em que elas de fato disputaram.
+    cut_reason = {row["name"]: row["reason"] for step in tiebreak for row in step["out"]}
+    for row in ranked:
+        if row["name"] in cut_reason:
+            row["eliminated"] = True
+            row["reason"] = cut_reason[row["name"]]
+            row["out_at"] = "tiebreak"
+        else:
+            row["out_at"] = "budget" if row["eliminated"] else None
 
     if losers:
         # O motivo do desempate é lido do que de fato distinguiu — texto fixo
@@ -963,6 +986,15 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
             if reasons
             else "Nenhum critério as separou; esta ficou na frente por ordem de listagem."
         )
+        # A mesma conclusão em duas linhas curtas, uma por linha do cartão. Sai
+        # do que já existe (`tied`, `value`, `short_reasons`) — nenhum número
+        # novo nasce aqui, e por isso não há como divergir do `why` logo ao lado.
+        verdict = [
+            f"{len(tied)} empataram em {winner['value'] * 100:.1f}%",
+            f"Ganhou porque {short_reasons[0]}"
+            if short_reasons
+            else "Ganhou por ordem de listagem: nenhum critério as separou",
+        ]
     else:
         second = next((row for row in eligible if row["name"] != winner["name"]), None)
         why = f"“{winner['label']}” acerta {winner['value'] * 100:.1f}%"
@@ -972,6 +1004,12 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
                 f"(“{second['label']}”)"
             )
         why += f", e responde em {winner['p50']:.1f} ms."
+        verdict = ["Ganhou sozinha, sem empate"]
+        if second:
+            verdict.append(
+                f"{winner['value'] * 100:.1f}% contra "
+                f"{second['value'] * 100:.1f}% da segunda"
+            )
 
     notes = []
     if winner["starved"] > 0:
@@ -1077,20 +1115,13 @@ def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band
         "ranked": ranked,
         "pipeline": PIPELINE_OF[winner["name"]],
         "why": why,
+        "verdict": verdict,
         "notes": notes,
         "tiebreak": tiebreak,
         "moved": moved,
         "swap": swap,
         "swap_caption": swap_caption,
         "why_caption": why_caption,
-        # O pódio do jogo: as três primeiras que ainda estão de pé. Sai daqui e
-        # não do `ranked[:3]` no front porque eliminada não sobe ao pódio nem
-        # quando sobram menos de três de pé — nesse caso o pódio é curto mesmo.
-        "podium": [
-            {"name": row["name"], "label": row["label"], "value": row["value"]}
-            for row in ranked
-            if not row["eliminated"]
-        ][:3],
     }
 
 
