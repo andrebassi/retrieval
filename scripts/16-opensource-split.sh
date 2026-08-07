@@ -21,9 +21,32 @@ BRANCH="${SPLIT_BRANCH:-opensource-split}"
 # o arquivo já não exista na ponta.
 SECRET_RE="AKIA[0-9A-Z]{16}|glpat-[A-Za-z0-9._-]{20}|ghp_[A-Za-z0-9]{36}|-----BEGIN [A-Z ]*PRIVATE KEY|AIza[0-9A-Za-z]{35}|xox[baprs]-[A-Za-z0-9-]{10}|whsec_[A-Za-z0-9]{10,}|re_[A-Za-z0-9]{24,}|(sk|rk)_live_[A-Za-z0-9]{10,}"
 
+# `grep -cE`, nunca `grep -qE`, e nunca herestring — as duas formas curtas de
+# escrever esta varredura falham em silêncio, cada uma do seu jeito:
+#
+#   `git show | grep -qE`   o grep fecha o pipe ao casar, o `git show` leva
+#                           SIGPIPE e o `pipefail` do topo devolve 141. Sob
+#                           `set -e` isso ABORTA — no commit que TEM segredo.
+#   `grep -qE <<<"$(…)"`    a herestring vira arquivo em `$TMPDIR` e **trava**
+#                           acima de ~100 B; um `git show` tem muito mais.
+#
+# `-c` conta e lê o stream inteiro: sem SIGPIPE, sem arquivo temporário. Devolve
+# 1 quando não acha nada, daí o `|| true`.
+# O `grep -cv CANARY` tira o único falso positivo conhecido: o canário logo
+# abaixo está VERSIONADO, então o `git show` do commit que introduziu este script
+# casa a regex e a varredura aborta a si mesma. Medido: `5874bf6` acusa 1 match,
+# e é a linha `+echo "+AKIA0000000000CANARY"`. Filtrar pela palavra `CANARY` é
+# honesto — ela existe exatamente para marcar a isca; um segredo de verdade não
+# a traz.
+scan() { grep -E "$SECRET_RE" | grep -cv CANARY || true; }
+
 # Canário: prova que a varredura enxerga antes de confiar no verde dela. Um scan
 # que nunca acha nada é indistinguível de um scan cego (rule 19 §3b).
-echo "+AKIA0000000000CANARY" | grep -qE "$SECRET_RE" \
+#
+# A isca é montada por concatenação (`AKIA` + o resto) para que ESTE arquivo não
+# case a própria regex quando for varrido — senão o problema do parágrafo acima
+# se repete a cada commit que toque o script.
+[ "$(printf '+%s%s\n' 'AKIA' '0000000000CANARY' | grep -cE "$SECRET_RE" || true)" != "0" ] \
   || { echo "🛑 regex de scan quebrada — abortando" >&2; exit 1; }
 
 echo "==> conferindo a árvore do monorepo"
@@ -41,7 +64,7 @@ echo "    $count commits"
 echo "==> varrendo o histórico inteiro por segredo"
 found=0
 while read -r sha; do
-  if git -C "$MONOREPO" show "$sha" 2>/dev/null | grep -qE "$SECRET_RE"; then
+  if [ "$(git -C "$MONOREPO" show "$sha" 2>/dev/null | scan)" != "0" ]; then
     echo "  🛑 $sha"
     found=$((found + 1))
   fi

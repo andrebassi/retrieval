@@ -17,7 +17,10 @@ PREFIX="${PREFIX:-retrieval-poc}"
 ORIGIN="${ORIGIN:-https://github.com/andrebassi/retrieval.git}"
 
 echo "==> conferindo que o repositório público responde"
-timeout 60s git ls-remote "$ORIGIN" refs/heads/main | grep -q main \
+# `grep -c` e não `grep -q`, pelo mesmo motivo do 16: `-q` fecha o pipe ao casar
+# e derruba quem escreve com SIGPIPE sob `pipefail`. Herestring também não serve
+# — ela trava acima de ~100 B neste ambiente.
+[ "$(timeout 60s git ls-remote "$ORIGIN" refs/heads/main | grep -c main || true)" != "0" ] \
   || { echo "🛑 $ORIGIN não tem main — rode o 20 antes" >&2; exit 1; }
 
 if [ -d "$POC/.git" ]; then

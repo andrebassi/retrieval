@@ -17,8 +17,10 @@ if ! rtk proxy curl -s --max-time 5 "${OLLAMA_URL:-http://127.0.0.1:11434}/api/t
 fi
 
 MODEL="${DENSE_MODEL:-bge-m3}"
-if rtk proxy curl -s --max-time 5 "${OLLAMA_URL:-http://127.0.0.1:11434}/api/tags" \
-    | grep -q "\"${MODEL}"; then
+# `grep -c` num pipe, e não `grep -q` nem herestring: `-q` fecha o pipe ao casar e
+# mata o curl com SIGPIPE, e a herestring trava acima de ~100 B — a lista de
+# modelos do Ollama passa disso com folga.
+if [ "$(rtk proxy curl -s --max-time 5 "${OLLAMA_URL:-http://127.0.0.1:11434}/api/tags" | grep -c "\"${MODEL}" || true)" != "0" ]; then
     echo "✅ modelo ${MODEL} já disponível"
 else
     echo "baixando ${MODEL}…"
