@@ -721,17 +721,17 @@ Decisões que valem registro:
 - **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
   `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
   precisa de Node — precisa do bundle, que já está no lugar. Medido nesta rodada:
-  `index.html` 554 B (374 B gzip), CSS 134 885 B (22 013 B gzip), JS 245 956 B
-  (75 812 B gzip). É a quarta medição deste mesmo bullet, e a primeira em que o
-  número **cai**: tirar o `remotion` + `@remotion/player` devolveu **−267 016 B
-  de JS crus** e **−83 361 B gzipados** contra os 512 972 B (159 173 B) da versão
+  `index.html` 554 B (368 B gzip), CSS 135 180 B (22 058 B gzip), JS 246 054 B
+  (75 786 B gzip). É a quarta medição deste mesmo bullet, e a primeira em que o
+  número **cai**: tirar o `remotion` + `@remotion/player` devolveu **−266 918 B
+  de JS crus** e **−83 387 B gzipados** contra os 512 972 B (159 173 B) da versão
   em vídeo — o JS voltou a ser menor do que era antes do Remotion entrar
-  (415,60 kB). O CSS ficou praticamente igual (+523 B crus: saíram as classes do
-  palco e dos capítulos, entraram as do cartão e da lista). O que se perde é a
-  rolagem sumir *por construção*; o que a substitui é a página ter **menos
-  coisa** — sem palco, sem barra de capítulos e sem controles, o conteúdo cabe em
-  1440×900 com folga, e os cinco prints `advice-*` são a prova que se confere a
-  cada rodada.
+  (415,60 kB). O CSS ficou praticamente igual (+818 B crus: saíram as classes do
+  palco e dos capítulos, entraram as do cartão, da lista e das fichas do
+  cabeçalho). O que se perde é a rolagem sumir *por construção*; o que a
+  substitui é a página ter **menos coisa** — sem palco, sem barra de capítulos e
+  sem controles, o conteúdo cabe em 1440×900 com folga, e os cinco prints
+  `advice-*` são a prova que se confere a cada rodada.
 - **A barra de pontuação normaliza dentro da coluna, nunca entre estratégias.**
   BM25 vai de 1,5 a 28; cosseno de 0,29 a 0,78; RRF são frações de 1/61. Uma
   escala comum faria a barra do RRF sumir e dar a impressão de que a fusão
@@ -900,10 +900,10 @@ E ele deixou passar coisa pior: uma prop indefinida (`explain`, passada ao
 componente errado) derrubou o render da **aba inteira**. O canário seguiu com
 `erros: 0` — o servidor estava íntegro, quem quebrou foi o JS depois do 200 —, e
 o defeito só apareceu porque o print da aba de busca saiu **em branco**. O sinal
-barato disso é o tamanho do arquivo: o menor PNG desta tela tem 130 147 B
+barato disso é o tamanho do arquivo: o menor PNG desta tela tem 121 843 B
 (`advice-sem-empate`) e o branco deu 10 979 B — uma ordem de grandeza de folga.
 Por isso `task web:shots` hoje falha (`rc=1`) quando um print fica abaixo de
-60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000` ele acusa **7 dos
+60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000` ele acusa **8 dos
 10** e sai `rc=1` — canário que nunca apita não está medindo.
 
 E os prints continuam pegando o que nenhuma asserção pega. Cinco defeitos desta

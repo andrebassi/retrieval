@@ -595,6 +595,42 @@ pre,
   max-width: 76ch;
 }
 
+/* A ficha técnica do cabeçalho. Cada item tem um rótulo forte e uma explicação
+   fraca: o número é o que se procura de relance, o resto só existe para quem
+   parou nele. Antes era uma frase única, e nela os três assuntos tinham o mesmo
+   peso visual — ou seja, nenhum.
+   `flex-wrap` e não grid de 3 colunas: em janela estreita eles empilham sozinhos,
+   e a coluna vazia de um grid deixaria buraco no lugar de fechar a linha. */
+.poc-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.poc-facts li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* A barra separa uma ficha da seguinte sem gastar um caractere `·`, que já é o
+   separador DENTRO da primeira ficha (34 · 80). Dois níveis com o mesmo sinal
+   foi metade do problema da linha antiga. */
+.poc-facts li + li {
+  border-left: 1px solid var(--line);
+  padding-left: 18px;
+}
+
+.poc-facts b {
+  color: var(--text);
+  font-weight: 600;
+}
+
 /* Explicação da opção, dobrada dentro do cartão. Fechada por padrão: seis
    cartões abertos empurrariam o resultado — que é o que a pessoa veio ver —
    para baixo da dobra. */

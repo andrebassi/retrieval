@@ -788,20 +788,38 @@ export function App() {
       <header className="poc-header">
         <div>
           <h1>Seis formas de achar um documento, comparadas lado a lado</h1>
+          {/* Uma frase, e ela diz o que o visitante ganha — não o que é um
+              sistema de busca. A versão anterior abria explicando a natureza do
+              problema ("todo sistema responde à mesma pergunta…") em quatro
+              linhas, e quem lê já sabe disso: o que ele não sabe é qual das seis
+              usar, que é justamente o que a primeira aba responde. */}
           <p className="poc-lede">
-            Todo sistema de busca responde à mesma pergunta: <em>quais documentos
-            entram na lista, e em que ordem?</em> Existem várias formas de
-            responder, e elas não erram nas mesmas perguntas. Aqui as seis
-            respondem ao mesmo tempo, sobre o mesmo acervo, e dá para ver quem
-            errou o quê.
+            As seis respondem às mesmas {data.queries.length} perguntas, sobre o
+            mesmo acervo, nesta máquina. Elas erram em perguntas{" "}
+            <em>diferentes</em> — e é isso que dá para ver aqui.
           </p>
-          <p className="poc-muted">
-            {data.corpus.total} documentos ({data.corpus.handwritten} escritos à
-            mão para esta comparação + {data.corpus.wikipedia} textos da
-            Wikipédia, que entram só para atrapalhar) · {data.queries.length}{" "}
-            perguntas com resposta certa definida · tudo roda nesta máquina,
-            nada sai daqui
-          </p>
+          {/* Três fichas, não uma linha corrida. Os mesmos números viviam numa
+              frase só, com parêntese dentro de parêntese e `·` separando
+              assuntos que não têm relação entre si — o olho não achava onde uma
+              informação terminava e a outra começava. Separadas, cada uma se lê
+              em um segundo. */}
+          <ul className="poc-facts">
+            <li>
+              <b>{data.corpus.total} documentos</b>
+              <span>
+                {data.corpus.handwritten} escritos à mão ·{" "}
+                {data.corpus.wikipedia} da Wikipédia, só para atrapalhar
+              </span>
+            </li>
+            <li>
+              <b>{data.queries.length} perguntas</b>
+              <span>cada uma com a resposta certa definida antes</span>
+            </li>
+            <li>
+              <b>tudo local</b>
+              <span>nada sai desta máquina</span>
+            </li>
+          </ul>
         </div>
         <nav className="poc-tabs">
           {TABS.map(({ id, label, icon: Icon }) => (
