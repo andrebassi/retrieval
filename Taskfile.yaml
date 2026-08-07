@@ -123,6 +123,16 @@ tasks:
     cmds:
       - bash scripts/16-opensource-split.sh 2>&1 | tee {{.LOG}}-opensource-split.log
 
+  opensource:push:
+    desc: "Cria o repo público no GitHub e empurra o histórico filtrado (irreversível)"
+    cmds:
+      - bash scripts/20-opensource-push.sh 2>&1 | tee {{.LOG}}-opensource-push.log
+
+  opensource:adopt:
+    desc: "Faz esta pasta virar clone do repo público e sair do monorepo"
+    cmds:
+      - bash scripts/21-adopt-repo.sh 2>&1 | tee {{.LOG}}-opensource-adopt.log
+
   query:
     desc: 'Uma consulta em todas as estratégias — task query -- "P-101 aquecendo"'
     cmds:
