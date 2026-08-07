@@ -43,6 +43,12 @@ def check_latencies(md: str) -> None:
     measured: set[float] = set()
     for entry in evaluation["strategies"]:
         measured.update(round(entry[k], 1) for k in ("query_ms_p50", "query_ms_p95"))
+        # O tempo **por família** também é medição, e é o que a aba “Qual devo
+        # usar?” compara — o cenário já fixou o tipo de pergunta, então o custo
+        # relevante é o daquele tipo. Sem isto, citar no texto um número que a
+        # tela exibe era acusado de órfão.
+        for family in entry["by_family"].values():
+            measured.update(round(family[k], 1) for k in ("query_ms_p50", "query_ms_p95"))
     for block in experiments.values():
         for key, value in block.items():
             if isinstance(value, (int, float)) and "ms" in key:

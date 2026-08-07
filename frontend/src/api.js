@@ -30,3 +30,5 @@ export const fetchCode = (strategy) =>
 export const fetchMeasured = () => get("/api/measured");
 
 export const fetchDisagreements = () => get("/api/disagreements");
+
+export const fetchAdvice = () => get("/api/advice");

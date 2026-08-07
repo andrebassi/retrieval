@@ -109,6 +109,132 @@ FAMILY_LABEL = {
     "hybrid": "a pergunta traz o código e a descrição na mesma frase",
 }
 
+# O que cada opção custa para manter no ar, e o que a derruba quando o acervo
+# muda. Isto não sai de medição — é a leitura de engenharia que a tabela de
+# médias não carrega, e é justamente o que decide entre duas linhas empatadas.
+#
+# `tuning_free` não é enfeite de documentação: é critério de desempate. Duas
+# estratégias empatadas na medição não estão empatadas na manutenção, e a que
+# precisa de um número calibrado neste acervo é a que quebra em silêncio no
+# próximo. Só a `weighted` tem esse problema — os "dois números fixos" do BM25
+# são constantes do artigo original, iguais em qualquer acervo.
+STRATEGY_TRAIT = {
+    "ts_rank": {
+        "needs": "só o Postgres, nada mais",
+        "tuning": "nada para ajustar",
+        "tuning_free": True,
+        "risk": "sem sinônimo: pergunta escrita com outras palavras não acha nada.",
+    },
+    "bm25": {
+        "needs": "só o Postgres, com a estatística de termos gravada",
+        "tuning": "dois números fixos (k1 e b), os mesmos do artigo original",
+        "tuning_free": True,
+        "risk": "sem sinônimo, igual à de cima — o peso melhora a ordem, não o alcance.",
+    },
+    "dense": {
+        "needs": "um modelo de embedding rodando o tempo todo",
+        "tuning": "nada para ajustar, mas troca de modelo refaz o índice inteiro",
+        "tuning_free": True,
+        "risk": "código exato: para o vetor, dois números quase iguais falam do mesmo assunto.",
+    },
+    "weighted": {
+        "needs": "o modelo de embedding, mais a soma das duas notas",
+        "tuning": "peso e escala, calibrados neste acervo",
+        "tuning_free": False,
+        "risk": "a escala das notas muda com o acervo, e o peso calibrado aqui deixa de valer lá.",
+    },
+    "rrf": {
+        "needs": "o modelo de embedding, mais a soma das posições",
+        "tuning": "nada para ajustar — só olha o lugar na lista",
+        "tuning_free": True,
+        "risk": "trata 1º folgado e 1º apertado como a mesma coisa.",
+    },
+    "rrf_rerank": {
+        "needs": "o modelo de embedding e mais um modelo revisor",
+        "tuning": "nada para ajustar, mas o revisor só vê os 20 primeiros",
+        "tuning_free": True,
+        "risk": "documento certo fora dos 20 nunca aparece, e o revisor às vezes rebaixa quem estava certo.",
+    },
+}
+
+# As três perguntas do escolhedor. Cada uma escolhe **uma coluna** da medição:
+# quem lê define a métrica, o tempo define quem é elegível, o tipo de pergunta
+# define qual família olhar. Nenhuma delas é preferência — as três mudam o
+# vencedor porque mudam o número que está sendo comparado.
+ADVICE_READERS = [
+    {
+        "id": "first",
+        "label": "Uma pessoa, e ela lê só o primeiro",
+        "hint": "caixa de busca que já mostra a resposta, assistente que responde uma coisa só",
+        "metric": "hit_at_1",
+        "metric_label": "acertou de primeira",
+    },
+    {
+        "id": "few",
+        "label": "Uma pessoa, e ela passa o olho em três",
+        "hint": "lista de resultados que alguém varre antes de clicar",
+        "metric": "hit_at_3",
+        "metric_label": "apareceu entre os três primeiros",
+    },
+    {
+        "id": "llm",
+        "label": "Um robô, e ele lê os dez",
+        "hint": "os resultados viram o contexto de um modelo de linguagem",
+        "metric": "hit_at_10",
+        "metric_label": "apareceu entre os dez",
+    },
+]
+
+ADVICE_BUDGETS = [
+    {
+        "id": "instant",
+        "label": "Enquanto a pessoa digita",
+        "ms": 5,
+        "hint": "sugestão que reaparece a cada tecla — não cabe chamar modelo nenhum",
+    },
+    {
+        "id": "click",
+        "label": "Depois de um clique",
+        "ms": 150,
+        "hint": "apertou buscar e espera a página trocar",
+    },
+    {
+        "id": "patient",
+        "label": "Pode esperar meio segundo",
+        "ms": 500,
+        "hint": "resposta de assistente, relatório, processamento em fila",
+    },
+]
+
+ADVICE_KINDS = [
+    {
+        "id": "literal",
+        "label": "Códigos, placas, números de nota",
+        "hint": "o que a pessoa digita está escrito no documento, letra por letra",
+    },
+    {
+        "id": "conceptual",
+        "label": "O problema descrito com palavras livres",
+        "hint": "quem pergunta não sabe o termo que o documento usa",
+    },
+    {
+        "id": "hybrid",
+        "label": "Os dois na mesma frase",
+        "hint": "“P-101 fazendo barulho” — código e sintoma juntos",
+    },
+]
+
+# Como cada vencedor se desenha em caixinhas na tela. É a mesma informação do
+# `needs`, na forma que responde “o que eu monto, afinal?”.
+PIPELINE_OF = {
+    "ts_rank": ["lexical"],
+    "bm25": ["lexical"],
+    "dense": ["dense"],
+    "weighted": ["lexical", "dense", "fusion"],
+    "rrf": ["lexical", "dense", "fusion"],
+    "rrf_rerank": ["lexical", "dense", "fusion", "rerank"],
+}
+
 
 class Poc:
     """Estado carregado uma vez no startup.
@@ -417,6 +543,238 @@ def disagreements() -> dict:
                 ),
             ),
         ]
+    }
+
+
+def _rank_for(rows: list[dict], family: str, metric: str, budget_ms: float, band: float) -> dict:
+    """Quem ganha neste cenário, e por quê — só com o que foi medido.
+
+    As três escolhas do usuário não são preferência: cada uma troca **qual
+    número** está sendo comparado. Quem lê define a métrica (1º, 3º ou 10º
+    lugar), o tempo define quem sequer entra na disputa, e o tipo de pergunta
+    define a família — e é aí que a média engana, porque o denso acerta 93% nas
+    descrições e 55% nos códigos, e a média de 81% não descreve nem uma coisa
+    nem outra.
+
+    O tempo comparado é o da própria família, não a média geral: o cenário já
+    fixou o tipo de pergunta, então o custo relevante é o daquele tipo.
+    """
+    ranked = []
+    for row in rows:
+        family_row = row["by_family"][family]
+        p50 = family_row["query_ms_p50"]
+        ranked.append(
+            {
+                "name": row["strategy"],
+                "label": STRATEGY_LABEL[row["strategy"]],
+                "value": family_row[metric],
+                "p50": p50,
+                "starved": family_row["starved_queries"],
+                "tuning_free": STRATEGY_TRAIT[row["strategy"]]["tuning_free"],
+                "eliminated": p50 > budget_ms,
+                "reason": (
+                    f"leva {p50:.1f} ms, acima do limite de {budget_ms:.0f} ms"
+                    if p50 > budget_ms
+                    else ""
+                ),
+            }
+        )
+
+    eligible = [row for row in ranked if not row["eliminated"]]
+    ranked.sort(key=lambda row: (row["eliminated"], -row["value"], row["starved"], row["p50"]))
+
+    if not eligible:
+        # Sem ninguém dentro do orçamento não há desempate a fazer; a lista sai
+        # na ordem de nota mesmo, só para a tela mostrar o quanto cada uma
+        # estourou o tempo.
+        return {
+            "winner": None,
+            "value": None,
+            "tied": [],
+            "ranked": ranked,
+            "pipeline": [],
+            "why": f"Nenhuma das seis responde em até {budget_ms:.0f} ms neste tipo de pergunta.",
+            "notes": [],
+        }
+
+    # Dentro da faixa de uma pergunta **não existe ordem por nota** — declarar
+    # vencedora a que tem o número maior ali dentro é premiar uma pergunta que
+    # caiu para um lado. Então: a faixa define quem disputa, e a disputa é
+    # decidida por engenharia, nesta ordem:
+    #
+    #   1. devolve a lista cheia (o fracasso que ninguém percebe vem primeiro);
+    #   2. não tem nada para calibrar (o que quebra em silêncio no próximo acervo);
+    #   3. responde mais rápido.
+    #
+    # Sem o critério 2, a `weighted` ganhava o cenário mais comum da tela por
+    # 3 ms de diferença — 3 ms escolhendo a única opção que precisa de ajuste
+    # manual, dentro de um empate onde a nota não distingue nada.
+    best = max(row["value"] for row in eligible)
+    contenders = [row for row in eligible if best - row["value"] < band]
+    contenders.sort(key=lambda row: (row["starved"], 0 if row["tuning_free"] else 1, row["p50"]))
+
+    winner = contenders[0]
+    tied = [row["name"] for row in contenders]
+    losers = contenders[1:]
+
+    # A lista da tela tem que sair na MESMA ordem do desempate, senão o topo dela
+    # contradiz o cartão logo acima: com o `sort` por nota, a `weighted` (117,8 ms)
+    # aparecia em 1º e a vencedora `rrf` (118,8 ms) em 2º, na mesma tela que
+    # explica que a `rrf` ganhou. Quem disputou vem primeiro, na ordem em que
+    # disputou; o resto segue por nota; eliminadas por último.
+    seat = {row["name"]: index for index, row in enumerate(contenders)}
+    ranked.sort(
+        key=lambda row: (
+            row["eliminated"],
+            seat.get(row["name"], len(seat)),
+            -row["value"],
+            row["starved"],
+            row["p50"],
+        )
+    )
+
+    if losers:
+        # O motivo do desempate é lido do que de fato distinguiu — texto fixo
+        # aqui produzia a contradição de anunciar "devolve a lista cheia" logo
+        # acima do aviso de que ela devolve 10 listas curtas.
+        reasons = []
+        worst_starved = min(row["starved"] for row in losers)
+        if winner["starved"] < worst_starved:
+            # "A única que devolve a lista cheia" só vale se ela devolve mesmo.
+            # Ganhar por devolver menos listas curtas que as outras é outra
+            # frase — a primeira contradizia o aviso logo abaixo em
+            # `llm|instant|conceptual`, onde a vencedora tem 3 perguntas famintas
+            # e as perdedoras, 10.
+            reasons.append(
+                "é a única que devolve a lista cheia"
+                if winner["starved"] == 0
+                else f"devolve lista curta em {winner['starved']} perguntas, "
+                f"contra {worst_starved} da melhor concorrente"
+            )
+        if winner["tuning_free"] and any(not row["tuning_free"] for row in losers):
+            reasons.append("não tem nada para calibrar")
+        if winner["p50"] < min(row["p50"] for row in losers):
+            reasons.append(f"responde em {winner['p50']:.1f} ms, o menor tempo entre elas")
+        # Enumeração com “e” antes da última, e cada nome entre aspas: quatro
+        # nomes longos separados só por vírgula viram uma frase que ninguém
+        # termina de ler — “empata com As duas juntas, somando notas, Busca por
+        # palavra, simples” tem sete vírgulas e três nomes.
+        names = [f"“{STRATEGY_LABEL[name]}”" for name in tied if name != winner["name"]]
+        others = names[0] if len(names) == 1 else ", ".join(names[:-1]) + f" e {names[-1]}"
+        why = (
+            f"“{winner['label']}” acerta {winner['value'] * 100:.1f}% e empata com "
+            f"{others}: a diferença entre elas cabe dentro de uma pergunta. "
+        )
+        why += (
+            f"O desempate não foi pela nota — {'; '.join(reasons)}."
+            if reasons
+            else "Nenhum critério as separou; esta ficou na frente por ordem de listagem."
+        )
+    else:
+        second = next((row for row in eligible if row["name"] != winner["name"]), None)
+        why = f"“{winner['label']}” acerta {winner['value'] * 100:.1f}%"
+        if second:
+            why += (
+                f", contra {second['value'] * 100:.1f}% da segunda colocada "
+                f"(“{second['label']}”)"
+            )
+        why += f", e responde em {winner['p50']:.1f} ms."
+
+    notes = []
+    if winner["starved"] > 0:
+        notes.append(
+            f"Devolve lista incompleta em {winner['starved']} das perguntas deste "
+            "tipo: acha o documento certo, mas traz pouca coisa junto. Se a tela "
+            "mostra uma lista, ela vai parecer vazia."
+        )
+    if winner["name"] == "weighted":
+        notes.append(
+            "A soma de notas foi calibrada neste acervo. Em outro acervo as notas "
+            "nascem em outra escala, e o ajuste precisa ser refeito — até lá o "
+            "número cai sem avisar ninguém."
+        )
+    if winner["name"] == "rrf_rerank" and metric != "hit_at_10":
+        rerank = next(r for r in rows if r["strategy"] == "rrf_rerank")
+        fusion = next(r for r in rows if r["strategy"] == "rrf")
+        if rerank["hit_at_10"] < fusion["hit_at_10"]:
+            notes.append(
+                f"O revisor derruba o “apareceu entre os dez” de "
+                f"{fusion['hit_at_10'] * 100:.1f}% para {rerank['hit_at_10'] * 100:.1f}%: "
+                "ele reordena os 20 primeiros e às vezes empurra o certo para fora "
+                "da lista curta. Se um dia esses dez forem para um modelo ler, "
+                "esta escolha muda."
+            )
+    return {
+        "winner": winner["name"],
+        "value": winner["value"],
+        "tied": tied,
+        "ranked": ranked,
+        "pipeline": PIPELINE_OF[winner["name"]],
+        "why": why,
+        "notes": notes,
+    }
+
+
+@app.get("/api/advice")
+def advice() -> dict:
+    """“Qual eu uso?” respondido pela medição, não por opinião.
+
+    Todo número daqui sai do `results/evaluation.json`. O que esta rota
+    acrescenta é aritmética: filtrar por tempo, escolher a coluna certa e
+    ordenar. Nenhum vencedor está escrito no código — troque a medição e a
+    recomendação muda junto.
+    """
+    path = RESULTS_DIR / "evaluation.json"
+    if not path.is_file():
+        raise HTTPException(503, "sem results/evaluation.json — rode 'task eval'")
+    evaluation = json.loads(path.read_text(encoding="utf-8"))
+    rows = evaluation["strategies"]
+    totals = evaluation["queries"]
+
+    # Uma pergunta a mais ou a menos move a nota em 1/37 = 2,7 pontos. Duas
+    # estratégias separadas por menos que isso não estão em ordem de qualidade:
+    # está uma pergunta que caiu para um lado. A tela chama isso de empate em
+    # vez de coroar um vencedor que o próximo acervo derruba.
+    band = 1.0 / totals["total"]
+
+    grid = {}
+    for reader in ADVICE_READERS:
+        for budget in ADVICE_BUDGETS:
+            for kind in ADVICE_KINDS:
+                grid[f"{reader['id']}|{budget['id']}|{kind['id']}"] = _rank_for(
+                    rows, kind["id"], reader["metric"], budget["ms"], band
+                )
+
+    return {
+        "queries": totals,
+        "band": round(band, 4),
+        "band_points": round(band * 100, 1),
+        "readers": ADVICE_READERS,
+        "budgets": ADVICE_BUDGETS,
+        "kinds": ADVICE_KINDS,
+        "strategies": [
+            {
+                "name": row["strategy"],
+                "label": STRATEGY_LABEL[row["strategy"]],
+                "hit_at_1": row["hit_at_1"],
+                "hit_at_3": row["hit_at_3"],
+                "hit_at_10": row["hit_at_10"],
+                "mrr": row["mrr"],
+                "p50": row["query_ms_p50"],
+                "starved": row["starved_queries"],
+                "by_family": {
+                    family: values["hit_at_1"] for family, values in row["by_family"].items()
+                },
+                "trait": STRATEGY_TRAIT[row["strategy"]],
+                "pipeline": PIPELINE_OF[row["strategy"]],
+            }
+            for row in rows
+        ],
+        "grid": grid,
+        # A resposta curta, para quem não quer responder três perguntas. Os
+        # nomes ficam aqui e os números que os sustentam saem de `strategies` —
+        # não há número escrito duas vezes.
+        "default": {"base": "rrf", "upgrade": "rrf_rerank", "avoid_alone": "dense"},
     }
 
 

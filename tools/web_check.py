@@ -241,5 +241,60 @@ if blocks:
     total = sum(len(b["cases"]) for b in blocks["blocks"])
     print(f"  ℹ️  {total} casos no total (um mesmo caso pode aparecer em 2 blocos)")
 
+print("\n== 9. /api/advice — a recomendação ==")
+advice = get_json("/api/advice")
+if advice:
+    combos = len(advice["readers"]) * len(advice["budgets"]) * len(advice["kinds"])
+    require(len(advice["grid"]) == combos, f"grid com {combos} cenários, um por combinação")
+    # A rota arredonda a faixa em 4 casas para caber na tela; comparar com o
+    # 1/37 cru falha por 2,7e-5 e o erro parece um defeito de cálculo.
+    require(
+        advice["band"] == round(1 / advice["queries"]["total"], 4),
+        f"faixa de ruído = 1/{advice['queries']['total']} = {advice['band_points']} pontos",
+    )
+    known = {row["name"]: row for row in advice["strategies"]}
+    require(len(known) == 6, f"{len(known)} estratégias no payload")
+    require(
+        all(row["trait"]["needs"] and row["trait"]["risk"] for row in advice["strategies"]),
+        "toda estratégia declara o que exige e o risco dela",
+    )
+    # A aritmética é do back-end justamente para caber aqui. Cada asserção abaixo
+    # já pegou um defeito de verdade: vencedor fora do empate, texto de desempate
+    # contradizendo a nota logo abaixo, e lista com outra ordem que o cartão.
+    for key, cell in advice["grid"].items():
+        reader, budget, kind = key.split("|")
+        if cell["winner"] is None:
+            continue
+        problems = []
+        if cell["winner"] not in known:
+            problems.append("vencedora não existe em strategies")
+        if cell["winner"] not in cell["tied"]:
+            problems.append("vencedora fora da própria lista de empate")
+        if cell["ranked"] and cell["ranked"][0]["name"] != cell["winner"]:
+            problems.append(f"lista começa por {cell['ranked'][0]['name']}, não pela vencedora")
+        if cell["pipeline"] != known[cell["winner"]]["pipeline"]:
+            problems.append("pipeline diverge do declarado na estratégia")
+        # Contradição textual: anunciar "lista cheia" e avisar de lista incompleta.
+        starved_note = any("lista incompleta" in note for note in cell["notes"])
+        if starved_note and "devolve a lista cheia" in cell["why"]:
+            problems.append("o porquê diz 'lista cheia' e a nota diz 'lista incompleta'")
+        # Markdown cru vaza para a tela como asterisco literal.
+        for text in [cell["why"], *cell["notes"]]:
+            if re.search(r"\*\*|`", text):
+                problems.append("Markdown cru no texto")
+                break
+        # Toda empatada tem que caber na faixa em relação à vencedora.
+        by_name = {row["name"]: row for row in cell["ranked"]}
+        gaps = [cell["value"] - by_name[name]["value"] for name in cell["tied"]]
+        if any(gap >= advice["band"] for gap in gaps):
+            problems.append("alguém no empate está fora da faixa de ruído")
+        require(not problems, f"{key} → {cell['winner']}" + (f" [{'; '.join(problems)}]" if problems else ""))
+    winners = {cell["winner"] for cell in advice["grid"].values()}
+    print(f"  ℹ️  {len(winners)} estratégias diferentes vencem em algum cenário: {sorted(winners)}")
+    require(
+        advice["default"]["base"] in known and advice["default"]["upgrade"] in known,
+        "a resposta curta aponta para estratégias que existem",
+    )
+
 print(f"\n== erros: {errors} ==")
 sys.exit(1 if errors else 0)

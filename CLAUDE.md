@@ -71,7 +71,7 @@ src/retrieval_poc/
 │   ├── runner.py       roda todas as estratégias → results/evaluation.json + hits.json
 │   └── experiments.py  E1–E4 → results/experiments.json
 ├── web/
-│   ├── app.py          FastAPI — 7 rotas; adapter DRIVING, igual ao cli.py
+│   ├── app.py          FastAPI — 8 rotas; adapter DRIVING, igual ao cli.py
 │   ├── code_tour.py    corpo das funções lido por `ast` (NÃO por inspect)
 │   └── static/         bundle do `pnpm build`; é o que o servidor entrega
 ├── report.py           gera results/REPORT.md
@@ -108,8 +108,8 @@ task report            # results/REPORT.md
 task query -- "P-101 aquecendo acima do normal"
 task web:build         # compila o front para src/retrieval_poc/web/static
 task web               # tela em http://127.0.0.1:8081 (compila se faltar bundle)
-task web:check         # CANÁRIO do front — 95 asserções, 8 seções, sem browser
-task web:shots         # 5 prints (exige 'task web' de pé); falha se algum sair em branco
+task web:check         # CANÁRIO do front — 131 asserções, 9 seções, sem browser
+task web:shots         # 7 prints (exige 'task web' de pé); falha se algum sair em branco
 task clean             # apaga corpus e resultados, mantém o banco
 ```
 
@@ -142,6 +142,10 @@ task "passa".
 | 19 | Aba inteira **em branco** com `task web:check` em `erros: 0` | prop passada ao componente errado (`explain` foi para `SearchTab`, e quem usa é `SearchResults`) — `ReferenceError` em runtime; o build do Vite não faz checagem de escopo e o canário só prova que a rota responde | o tamanho do PNG é o sinal barato: print desta tela nunca desce de 200 kB, o branco deu 10 979 B. `14-web-shots.sh` falha abaixo de `MIN_BYTES=60000`. Para o erro exato: `Chrome --headless --enable-logging=stderr --dump-dom <url>` e filtrar `Uncaught` |
 | 20 | `?explain=1` na URL e os `<details>` continuam fechados | `const initial = readUrl()` rodava **a cada render**, e o `useEffect` de `replaceState` já tinha reescrito a URL sem o parâmetro. Como os cartões só nascem depois da busca, o valor chegava sempre falso | ler a URL uma vez (`useState(readUrl)`) e **preservar** o parâmetro no `replaceState`. Conferência sem browser: `--dump-dom \| grep -o 'poc-plain" open' \| wc -l` tem que dar 6 (`grep -c` dá 1 — o DOM sai numa linha só) |
 | 21 | `**palavra**` aparece com os asteriscos na tela | os textos de `STRATEGY_PLAIN` são impressos como texto puro; nada no front interpreta Markdown | asserção no `web_check.py` proíbe `**` nesses campos. Foi o print que mostrou — o canário anterior só cobrava que o campo não fosse vazio |
+| 22 | O cenário **padrão** da aba “Qual devo usar?” recomendava `weighted` — a única opção que precisa de calibração, e a que o README manda evitar | empate de 100% entre quatro estratégias, desempatado por `p50`: 3 ms de diferença elegeram a mais frágil. Dentro da faixa de ruído a nota não distingue nada, então o critério de desempate **é** a recomendação | `tuning_free` virou campo de `STRATEGY_TRAIT` e entra **antes** do tempo: lista cheia → nada para calibrar → mais rápido. Empate se decide por engenharia, nunca por milissegundo |
+| 23 | O texto do desempate dizia "é a única que devolve a lista cheia" e a nota logo abaixo avisava "devolve lista incompleta em 10 perguntas" | frase **fixa**, não derivada do critério que de fato distinguiu | montar o motivo comparando a vencedora com as perdedoras reais, e distinguir "devolve a lista cheia" (starved 0) de "devolve lista curta em menos perguntas". Asserção no `web_check.py`: `why` com "lista cheia" + nota de "lista incompleta" = erro |
+| 24 | A lista de ranking começava por `weighted` na mesma tela que explica por que `rrf` ganhou | o `sort` da lista era por nota; o desempate era outro | a lista sai na **mesma ordem do desempate** (`seat` = posição entre os contenders). Asserção: `ranked[0].name == winner` em todos os 27 cenários |
+| 25 | `task check:readme` acusa `[118,8 ms]` como latência inventada | o p50 que a aba compara é o **da família**, dentro de `by_family`, e o canário só varria o p50 global | o canário passou a varrer `by_family` também. Ele estava certo: 118,8 era erro de digitação meu, o medido é 119,7 |
 
 ## Como interpretar os resultados
 

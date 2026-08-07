@@ -680,6 +680,444 @@ pre,
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* ---------- aba “Qual devo usar?” ---------- */
+
+/* A animação aqui carrega significado, e é o único lugar da tela onde isso
+ * acontece: a barra crescer de novo é o que mostra que a ORDEM mudou depois da
+ * resposta. Sem movimento, trocar “quem lê” de pessoa para robô reescreve os
+ * números no lugar e ninguém percebe que o pódio inverteu. Quem desligou
+ * animação no sistema continua vendo o resultado final — só sem o caminho. */
+
+.poc-answer {
+  border: 1px solid var(--accent);
+  border-left-width: 4px;
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 16px 18px;
+  margin: 16px 0 24px;
+}
+
+.poc-answer h3 {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.poc-answer-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 10px;
+}
+
+.poc-answer-list li {
+  line-height: 1.55;
+}
+
+.poc-wizard {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin-bottom: 24px;
+}
+
+.poc-choice {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 12px 14px 14px;
+  margin: 0;
+}
+
+.poc-choice legend {
+  font-weight: 600;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.poc-choice-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.78rem;
+}
+
+.poc-choice-options {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.poc-opt {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  border: 1px solid var(--line);
+  background: var(--canvas);
+  border-radius: 8px;
+  padding: 8px 10px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.poc-opt:hover {
+  border-color: var(--accent);
+  transform: translateX(2px);
+}
+
+.poc-opt span {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.poc-opt-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.poc-opt-on strong::before {
+  content: "✓ ";
+  color: var(--accent);
+}
+
+.poc-outcome {
+  animation: poc-rise 320ms ease both;
+}
+
+.poc-winner {
+  border: 1px solid var(--good);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Varredura de luz uma única vez, quando o bloco remonta. Serve de aviso de
+ * "isto aqui acabou de mudar" — é a única forma de a troca de resposta ser
+ * percebida por quem estava olhando as barras lá embaixo. */
+.poc-winner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    color-mix(in srgb, var(--good) 18%, transparent) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  animation: poc-sweep 900ms ease-out 120ms both;
+  pointer-events: none;
+}
+
+.poc-winner-tag {
+  display: inline-block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--good);
+  border: 1px solid var(--good);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.poc-winner h3 {
+  margin: 8px 0 2px;
+  font-size: 1.3rem;
+}
+
+.poc-winner-why {
+  margin: 10px 0 0;
+  font-size: 0.95rem;
+}
+
+.poc-winner-needs,
+.poc-winner-risk {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.poc-pipe {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 16px 0 8px;
+}
+
+.poc-pipe-step {
+  display: flex;
+  align-items: center;
+}
+
+.poc-pipe-col {
+  display: grid;
+  gap: 8px;
+}
+
+.poc-pipe-box {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 8px 12px;
+  min-width: 168px;
+  display: grid;
+  gap: 2px;
+  animation: poc-rise 320ms ease both;
+}
+
+.poc-pipe-box span {
+  font-size: 0.74rem;
+  color: var(--muted);
+}
+
+.poc-pipe-lexical {
+  border-color: var(--mid);
+}
+.poc-pipe-dense {
+  border-color: #2563eb;
+}
+.poc-pipe-fusion {
+  border-color: var(--accent);
+}
+.poc-pipe-rerank {
+  border-color: var(--good);
+}
+.poc-pipe-out {
+  border-style: dashed;
+}
+
+.poc-pipe-arrow {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 2px;
+  background: var(--line);
+  margin: 0 4px;
+}
+
+/* A bolinha correndo diz que os dados ATRAVESSAM as caixas — sem ela o desenho
+ * lê como quatro etiquetas soltas, não como um caminho. */
+.poc-pipe-arrow::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: poc-flow 1.7s linear infinite;
+}
+
+.poc-warnline {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--mid);
+  background: color-mix(in srgb, var(--mid) 8%, transparent);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.88rem;
+}
+
+.poc-rank-title {
+  margin: 24px 0 10px;
+  font-size: 0.95rem;
+}
+
+.poc-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.poc-rank-row {
+  display: grid;
+  grid-template-columns: 210px 1fr 56px 190px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  transition: opacity 200ms ease;
+}
+
+.poc-rank-out {
+  opacity: 0.42;
+}
+
+.poc-rank-out .poc-rank-fill {
+  background: var(--muted);
+}
+
+.poc-rank-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.86rem;
+  line-height: 1.25;
+}
+
+.poc-rank-name code {
+  color: var(--muted);
+}
+
+.poc-badge {
+  font-style: normal;
+  font-size: 0.68rem;
+  border-radius: 999px;
+  padding: 0 7px;
+  width: fit-content;
+  margin-top: 2px;
+  background: var(--good);
+  color: #fff;
+}
+
+.poc-badge-tie {
+  background: transparent;
+  color: var(--mid);
+  border: 1px dashed var(--mid);
+}
+
+.poc-rank-track {
+  position: relative;
+  height: 18px;
+  background: var(--canvas);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* A faixa listrada é o intervalo que UMA pergunta explica. Desenhá-la ao lado
+ * da barra é o que impede a leitura de "ganhou por 2 pontos" onde o certo é
+ * "empatou". */
+.poc-rank-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--mid) 55%, transparent) 0 3px,
+    transparent 3px 6px
+  );
+  border-left: 1px dashed var(--mid);
+  border-right: 1px dashed var(--mid);
+}
+
+.poc-rank-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: var(--accent);
+  border-radius: 4px;
+  transform-origin: left center;
+  animation: poc-grow 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+  opacity: 0.85;
+}
+
+.poc-rank-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+  font-size: 0.88rem;
+}
+
+.poc-rank-side {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+
+@keyframes poc-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes poc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes poc-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes poc-flow {
+  0% {
+    left: -8px;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+  }
+}
+
+/* Movimento é opcional; a informação, não. Com animação desligada tudo aparece
+ * no estado final — nada some junto com o efeito. */
+@media (prefers-reduced-motion: reduce) {
+  .poc-rank-fill,
+  .poc-outcome,
+  .poc-pipe-box,
+  .poc-winner::after,
+  .poc-pipe-arrow::after {
+    animation: none;
+  }
+  .poc-winner::after {
+    display: none;
+  }
+  .poc-pipe-arrow::after {
+    left: 50%;
+    opacity: 1;
+  }
+  .poc-opt:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .poc-rank-row {
+    grid-template-columns: 150px 1fr 52px;
+  }
+  .poc-rank-side {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --ink: #e6e8ec;
@@ -699,5 +1137,15 @@ pre,
   }
   .poc-alert {
     background: #2b1413;
+  }
+  .poc-winner {
+    border-color: #2e8b62;
+  }
+  .poc-winner-tag {
+    color: #57c08d;
+    border-color: #2e8b62;
+  }
+  .poc-badge {
+    background: #2e8b62;
   }
 }

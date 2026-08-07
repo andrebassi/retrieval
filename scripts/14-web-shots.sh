@@ -45,14 +45,22 @@ shot() {
   fi
 }
 
-shot busca        ""                            1700
+# A aba de entrada é a recomendação, então a URL sem parâmetro nenhum já cai
+# nela — e é justamente o cenário mais comum (lê o primeiro resultado, espera um
+# clique, perguntas misturadas).
+shot recomendacao ""                            1800
+# As três respostas do escolhedor são estado de URL. Sem isso, o print só
+# pegaria o cenário inicial e a parte interativa da aba ficaria sem prova
+# nenhuma: este segundo print tem que mostrar OUTRA vencedora que o de cima.
+shot recomendacao-llm "?reader=llm&budget=patient&kind=conceptual" 1800
+shot busca        "?tab=search"                 1700
 shot documento    "?tab=document&doc=ch_5506"   1500
 shot placar       "?tab=score"                  1000
 shot discordancia "?tab=disagree"               1700
 # O texto que explica cada opção vive dobrado num `<details>`. Fechado, ele não
 # entra em print nenhum — e texto que ninguém confere é texto que envelhece
 # errado. `?explain=1` abre os seis de uma vez.
-shot explicacoes  "?explain=1"                  2400
+shot explicacoes  "?tab=search&explain=1"       2400
 
 echo "==> prints em $OUT — erros: $errors"
 exit $((errors > 0 ? 1 : 0))

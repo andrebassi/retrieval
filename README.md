@@ -532,6 +532,13 @@ Duas regras que caem fora da tabela:
 2. **Reranker é a última etapa a acrescentar, não a primeira.** Ele não recupera
    nada que o prefetch não trouxe, e custa mais que todo o resto somado.
 
+Esta tabela é estática e cabe em três linhas de resumo: **comece pela fusão por
+posição** (`rrf`), **ligue o revisor** (`rrf_rerank`) só quando o primeiro
+resultado for o que a pessoa lê, e **nunca use o denso sozinho**. Quem quiser a
+mesma decisão para o *seu* caso, com os 27 cenários calculados sobre os mesmos
+números medidos, responde três perguntas na aba **“Qual devo usar?”** do
+`task web` — descrita em [A tela](#a-tela).
+
 ---
 
 ## Como rodar
@@ -661,22 +668,28 @@ marcado em cada resultado.
 task web:build    # compila o front para dentro do pacote Python
 task web          # http://127.0.0.1:8081 (compila sozinho se faltar o bundle)
 task web:check    # CANÁRIO do front — todas as rotas e o bundle, sem browser
-task web:shots    # cinco prints (exige 'task web' de pé)
+task web:shots    # sete prints (exige 'task web' de pé)
 ```
 
-Quatro abas, cada uma respondendo a uma pergunta diferente:
+Cinco abas, cada uma respondendo a uma pergunta diferente. A primeira é a de
+entrada, e responde a pergunta que sobra depois de ler a tabela inteira:
 
 | Aba | Responde |
 |---|---|
+| **Qual devo usar?** | responda três perguntas (quem lê o resultado, quanto tempo dá para esperar, como são as perguntas) e a tela recalcula a vencedora nos números medidos — com a faixa de empate desenhada, o que a escolhida exige para viver e o que a derruba |
 | **Fazer uma pergunta** | as 6 estratégias sobre a mesma consulta, com acerto, latência e a marca de **voltou incompleta** quando devolveu menos que `k` |
 | **Como isso fica guardado** | o que existe no banco para um documento: lexemas com `tf`/`df`/IDF, as 24 primeiras dimensões do vetor e o texto indexado |
 | **Quem acerta mais** | a mesma tabela do `results/evaluation.json`, servida byte a byte — não recalculada |
 | **Onde elas discordam** | os 15 casos em que as estratégias divergem, com id, texto da consulta e o rank que cada uma deu |
 
-Cada aba tem **URL própria** (`?tab=score`, `?tab=document&doc=ch_5506`). Não é
-enfeite: sem isso não existe link para uma aba, e nenhuma ferramenta que fotografa
-a tela chega às outras três — foi o que dispensou um script de CDP com websocket
-só para clicar em botão.
+Cada aba tem **URL própria** (`?tab=score`, `?tab=document&doc=ch_5506`), e o
+escolhedor também (`?reader=llm&budget=patient&kind=conceptual`). Não é enfeite:
+sem isso não existe link para uma aba nem para um cenário, e nenhuma ferramenta
+que fotografa a tela chega às outras quatro — foi o que dispensou um script de
+CDP com websocket só para clicar em botão. É também o que permite provar por
+print que o escolhedor **muda de resposta**: os dois primeiros prints do
+`task web:shots` são o mesmo componente com cenários diferentes, e recomendam
+estratégias diferentes.
 
 **A tela fala com quem não é da área.** O nome de cada estratégia aparece em
 português (`dense` → "Busca por significado"), e cada cartão dobra uma explicação
@@ -691,7 +704,7 @@ Decisões que valem registro:
 - **O front é dependência de _build_, não de execução.** O `pnpm build` emite em
   `src/retrieval_poc/web/static/` e o FastAPI serve dali. Quem só roda a PoC não
   precisa de Node — precisa do bundle, que já está no lugar. Medido: `index.html`
-  554 B, CSS 132,67 kB (21,76 kB gzip), JS 240,59 kB (74,39 kB gzip).
+  554 B, CSS 138,21 kB (22,99 kB gzip), JS 252,09 kB (77,70 kB gzip).
 - **A barra de pontuação normaliza dentro da coluna, nunca entre estratégias.**
   BM25 vai de 1,5 a 28; cosseno de 0,29 a 0,78; RRF são frações de 1/61. Uma
   escala comum faria a barra do RRF sumir e dar a impressão de que a fusão
@@ -704,10 +717,56 @@ Decisões que valem registro:
   ela poderia discordar do `REPORT.md` e ninguém notaria. O canário compara os
   dois byte a byte.
 
+### O escolhedor: a mesma decisão, calculada
+
+A aba de entrada não opina — ela lê `results/evaluation.json` e resolve, para
+cada um dos **27 cenários** (3 leitores × 3 orçamentos de tempo × 3 tipos de
+pergunta), qual estratégia recomendar. A aritmética inteira vive no back-end
+(`/api/advice`), pela mesma razão de sempre: existe **um** caminho de cálculo, e
+ele é testável pelo canário. O front só desenha.
+
+A regra tem três degraus, nesta ordem:
+
+1. **corta quem estoura o tempo** — `p50` acima do orçamento sai da disputa,
+   mesmo acertando mais. Aparece na tela em cinza, com o motivo escrito;
+2. **acha a faixa de empate** — com 37 perguntas medidas, **uma** pergunta vale
+   `1/37` = **2,7 pontos**. Quem estiver a menos disso da líder não está atrás:
+   está empatado, e a tela desenha a faixa listrada no fim da barra;
+3. **desempata por engenharia, não por nota** — dentro da faixa a nota não
+   distingue nada, então vence quem (a) devolve a lista cheia, (b) não tem nada
+   para calibrar, (c) responde mais rápido — nesta ordem.
+
+O critério (b) não é decoração. **Sem ele, o cenário mais comum da tela — o
+estado inicial, que é o que 90% das pessoas vão ver — recomendava a `weighted`
+por 3 ms de diferença**: dentro de um empate de 100% onde a nota não separa nada,
+os 3 ms elegiam justamente a única opção que precisa de peso e escala calibrados
+neste acervo. `tuning_free` virou campo do payload e entrou antes do tempo.
+
+E o texto do desempate é **derivado** do que de fato distinguiu, não fixo. A
+frase fixa produzia a contradição de anunciar “é a única que devolve a lista
+cheia” logo acima do aviso de que a vencedora devolve lista curta em 3 perguntas.
+Hoje há asserção para isso no canário — e a mutação que reintroduz a frase fixa
+faz o canário apitar (`llm|instant|conceptual`), como toda verificação que
+precisa provar que enxerga.
+
+Um efeito colateral que valeu por si: a lista de ranking passou a sair na **mesma
+ordem do desempate**. Ordenada por nota, ela colocava a `weighted` (117,8 ms) em
+1º e a vencedora `rrf` (119,7 ms) em 2º — na mesma tela que explica por que a
+`rrf` ganhou.
+
+**A animação carrega significado, não enfeite.** As barras crescem da esquerda
+(`transform: scaleX()` com origem à esquerda — `width` não anima em keyframe
+inline), o cartão da vencedora recebe uma varredura de luz, e a troca de cenário
+**remonta o bloco** (`key={cenário}`) justamente para replayar o crescimento: sem
+isso, mudar a resposta trocava os números em silêncio e ninguém percebia que a
+recomendação tinha virado outra. `prefers-reduced-motion: reduce` desliga o
+caminho e mantém o estado final — quem pediu menos movimento não pode perder
+informação.
+
 ### O terceiro canário: a tela também mente ✅ medido
 
 Tela é a parte que ninguém testa — abre bonita e mente calada. `task web:check`
-faz **99 asserções** em 8 seções contra o servidor no ar, sem browser, e não
+faz **131 asserções** em 9 seções contra o servidor no ar, sem browser, e não
 aborta na primeira falha (uma rodada mostra tudo que está quebrado). Ele pega
 três coisas que passam por qualquer olhada:
 
@@ -743,7 +802,7 @@ o defeito só apareceu porque o print da aba de busca saiu **em branco**. O sina
 barato disso é o tamanho do arquivo: os PNG desta tela nunca descem de 200 kB, e
 o branco deu 10 979 B. Por isso `task web:shots` hoje falha (`rc=1`) quando um
 print fica abaixo de 60 kB. Verificado invertendo o limiar: com `MIN_BYTES=300000`
-ele acusa três dos cinco e sai != 0 — canário que nunca apita não está medindo.
+ele acusa três dos sete e sai != 0 — canário que nunca apita não está medindo.
 
 ---
 
@@ -770,7 +829,7 @@ src/retrieval_poc/
 ├── corpus/                    build.py (alvos + distratores) · queries.py (gabarito)
 ├── evaluation/                metrics.py · runner.py · experiments.py
 ├── web/
-│   ├── app.py                 FastAPI: 7 rotas, adapter DRIVING da mesma pilha
+│   ├── app.py                 FastAPI: 8 rotas, adapter DRIVING da mesma pilha
 │   ├── code_tour.py           corpo das funções lido por `ast` (sem importar torch)
 │   └── static/                bundle emitido pelo `pnpm build` — servido daqui
 ├── report.py                  results/REPORT.md
@@ -783,7 +842,7 @@ tools/check_readme.py          canário da documentação (fora do pacote: não 
 tools/web_check.py             parte da PoC, é quem audita a PoC — texto e tela)
 ```
 
-**2 731 linhas de Python**, 15 scripts numerados em `scripts/` (`00-setup` a
+**3 089 linhas de Python**, 15 scripts numerados em `scripts/` (`00-setup` a
 `14-web-shots`), e um `Taskfile.yaml`
 que chama script — nunca comando ad-hoc.
 
