@@ -17,6 +17,16 @@ não no código ser reaproveitável.
 Corpus: 114 documentos (34 alvos de manutenção industrial escritos à mão + 80
 distratores da Wikipédia em pt). Gabarito: 37 consultas em 3 famílias.
 
+**Este diretório já não pertence ao monorepo `~/works/labs`.** Ele é clone de
+https://github.com/andrebassi/retrieval (MIT), adotado pelo `21-adopt-repo.sh` —
+o monorepo o ignora por `.gitignore`. Commit e push saem daqui, para `origin`.
+
+| Onde | O quê |
+|---|---|
+| https://github.com/andrebassi/retrieval | código, MIT |
+| https://retrieval.andrebassi.com.br | a tela, Cloudflare Pages, sem back-end |
+| https://andrebassi.com.br/labs | LAB·04 no portfólio (par PT + EN) |
+
 ## Regras invioláveis deste projeto
 
 1. **Nenhum número no README ou no REPORT.md sem ter rodado o comando que o
@@ -45,6 +55,14 @@ distratores da Wikipédia em pt). Gabarito: 37 consultas em 3 famílias.
 7. **Corpus e resultados não são versionados** (`data/corpus.jsonl`,
    `results/*.json` estão no `.gitignore`); **`results/REPORT.md` é**, porque é o
    registro do que foi medido.
+8. **O que se publica é congelado, não recalculado.** `dist/` sai do
+   `17-web-static.sh`, que exige `task web` no ar e grava a resposta do servidor
+   de verdade. Mudou dado? A rodada completa vale — `web:static:front` só
+   recompila a interface por cima do snapshot velho, e os números continuam
+   sendo os da última congelada. Antes de `task web:publish`, o canário
+   (`task web:static:check`) roda; depois, ele roda **de novo contra a URL no
+   ar**, porque o que quebra em produção é o caminho de asset, que o
+   `file://` local não exercita.
 
 ## Arquitetura — Ports & Adapters
 
@@ -117,6 +135,19 @@ task web:restart       # reinicia em segundo plano e espera o 200 — o servidor
 task web:check         # CANÁRIO do front — 148 asserções, 10 seções, sem browser
 task web:shots         # 10 prints (exige 'task web' de pé); falha se algum sair em branco
 task clean             # apaga corpus e resultados, mantém o banco
+```
+
+Publicação (detalhe no README, seção *Publicado — repositório, site e portfólio*):
+
+```bash
+task web:static        # congela a API em dist/ — EXIGE 'task web' no ar
+task web:static:front  # recompila só o front por cima do snapshot já congelado
+task web:static:check  # CANÁRIO do publicável: 5 abas num Chrome headless
+                       #   aceita URL: bash scripts/19-web-static-check.sh https://retrieval.andrebassi.com.br
+task web:publish       # Cloudflare Pages + domínio (idempotente)
+task opensource:split  # subtree split + varredura de segredo + reassinatura — NÃO empurra
+task opensource:push   # cria o repo no GitHub e empurra (irreversível)
+task opensource:adopt  # esta pasta vira clone do repo público e sai do monorepo
 ```
 
 Toda task loga em `/tmp/retrieval-poc-*.log` via `tee`, e o `Taskfile` tem

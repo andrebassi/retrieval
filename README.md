@@ -22,7 +22,9 @@ experimentos que isolam um efeito cada.
 | **Modelo denso** | `bge-m3`, 1024 dimensões, servido pelo Ollama local |
 | **Reranker** | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` |
 | **Banco** | PostgreSQL 17.10 + pgvector 0.8.6, subido por **Nix** na porta 5434 |
-| **Licença** | não declarada |
+| **Licença** | [MIT](LICENSE) |
+| **Código** | https://github.com/andrebassi/retrieval |
+| **Tela no ar** | https://retrieval.andrebassi.com.br |
 
 Tudo roda **na máquina**: o encoder, o reranker e o Postgres. Nenhuma consulta
 sai daqui — não há chave de API em lugar nenhum do repositório.
@@ -41,10 +43,11 @@ sai daqui — não há chave de API em lugar nenhum do repositório.
 8. [Como escolher](#como-escolher)
 9. [Como rodar](#como-rodar)
 10. [A tela](#a-tela)
-11. [Arquitetura](#arquitetura)
-12. [O que NÃO está implementado](#o-que-não-está-implementado)
-13. [Limitações — o que estes números NÃO provam](#limitações--o-que-estes-números-não-provam)
-14. [Conclusão prática](#conclusão-prática)
+11. [Publicado — repositório, site e portfólio](#publicado--repositório-site-e-portfólio)
+12. [Arquitetura](#arquitetura)
+13. [O que NÃO está implementado](#o-que-não-está-implementado)
+14. [Limitações — o que estes números NÃO provam](#limitações--o-que-estes-números-não-provam)
+15. [Conclusão prática](#conclusão-prática)
 
 ---
 
@@ -932,6 +935,95 @@ Nenhum desses quebra rota, contrato ou soma. Todos quebram a tela.
 
 ---
 
+## Publicado — repositório, site e portfólio
+
+A PoC nasceu como subdiretório de um monorepo privado. Hoje ela é **repositório
+próprio, sob MIT**, e a tela está no ar sem nada por trás:
+
+| | |
+|---|---|
+| **Código** | https://github.com/andrebassi/retrieval — 15 commits, os **15** com `%G?` = `G` |
+| **Licença** | [MIT](LICENSE) |
+| **Tela** | https://retrieval.andrebassi.com.br — Cloudflare Pages, `HTTP 200` |
+| **No portfólio** | LAB·04 em https://andrebassi.com.br/labs (PT e EN) |
+
+### A tela publicada não tem servidor
+
+O que está no ar é o **mesmo front**, com a API congelada em arquivo. Nenhum
+Postgres, nenhum Ollama, nenhum cross-encoder — não haveria como: o reranker
+sozinho não cabe num host estático, e um back-end vivo transformaria uma PoC de
+medição em serviço para manter.
+
+`scripts/17-web-static.sh` exige `task web` **no ar** e grava a resposta do
+servidor de verdade, como ela veio. O que sobe é isso:
+
+| Caminho | Arquivos | O que é |
+|---|---|---|
+| `dist/data/search/` | 111 | uma resposta por consulta medida, as 6 estratégias em cada |
+| `dist/data/document/` | 114 | o que o banco guarda de cada documento — lexemas, `tf`/`df`/IDF, 24 dimensões do vetor |
+| `dist/data/code/` | 6 | o trecho de código de cada estratégia, como a aba o exibe |
+| `dist/assets/` | 2 | `index-*.js` **250 790 B** (gzip **77 885**) · `index-*.css` **135 727 B** (gzip **22 161**) |
+| `dist/` (total) | **239** | **2,7 MB** |
+
+A consequência honesta disso é que **pergunta fora do gabarito não tem
+resposta** — e a tela diz isso, com a frase explicando por quê, em vez de
+devolver lista vazia como se a busca não tivesse achado nada. Lista vazia
+mentiria duas vezes: sobre a busca e sobre o corpus.
+
+O canário do publicável é o mesmo dos prints, apontado para a URL no ar em vez
+do diretório local:
+
+```bash
+task web:static                                              # congela a API em dist/
+bash scripts/19-web-static-check.sh                          # canário do dist/ local
+bash scripts/19-web-static-check.sh https://retrieval.andrebassi.com.br
+task web:publish                                             # Cloudflare Pages + domínio
+```
+
+`18-web-publish.sh` recusa publicar se faltar `dist/data/state.json` — sem o
+snapshot o bundle sobe, todas as rotas respondem 200 e a tela abre **vazia**.
+Descobrir isso no ar custa mais caro que conferir antes.
+
+### Sair do monorepo sem levar o que não é para publicar
+
+Publicar não é copiar arquivo: é levar **só** os commits que tocaram este
+prefixo, com autoria e data preservadas. Quatro scripts, nesta ordem, cada um
+parando onde o seguinte precisa de conferência humana:
+
+| Script | O que faz | Por que separado |
+|---|---|---|
+| `16-opensource-split.sh` | `git subtree split` do prefixo + varredura de segredo no histórico **inteiro** + reassinatura de todos os commits | **não empurra nada** — histórico publicado não volta |
+| `20-opensource-push.sh` | cria o repo no GitHub e empurra o histórico filtrado | irreversível, por isso é um passo próprio |
+| `21-adopt-repo.sh` | este diretório vira clone do repo público e sai do monorepo | ordem importa: o monorepo esquece o prefixo **antes** de nascer o `.git` de dentro, senão vira gitlink |
+| `18-web-publish.sh` | publica `dist/` e prende o domínio | idempotente: redeploy não duplica o domínio |
+
+Três coisas que o `16` faz e que parecem detalhe até morderem:
+
+- **varre o histórico inteiro, não a ponta.** Um commit intermediário com
+  credencial continua público depois do push, mesmo que o arquivo já não exista;
+- **o canário da varredura é montado por concatenação** (`'AKIA' + resto`) para
+  que o próprio script não case a regex quando for varrido — senão a varredura
+  aborta a si mesma a cada commit que o toque;
+- **reassina os 15 commits.** O `subtree split` reescreve cada um (árvore
+  diferente, pai diferente), então o SHA novo nasce **sem** assinatura: a do
+  commit original cobre a árvore do monorepo, não esta. Desligar a assinatura
+  para destravar seria justamente onde o `Unverified` fica para sempre.
+
+### Duas armadilhas de shell que custaram a rodada
+
+As duas fazem a varredura de segredo falhar **em silêncio**, cada uma do seu
+jeito, e as duas são a forma mais natural de escrever o comando:
+
+| Forma | O que acontece |
+|---|---|
+| `git show \| grep -qE` | o `grep` fecha o pipe ao casar, o `git show` leva SIGPIPE, o `pipefail` devolve 141 e o `set -e` **aborta — no commit que TEM segredo** |
+| `grep -qE <<<"$(git show …)"` | a herestring vira arquivo em `$TMPDIR` e **trava** acima de ~100 B; um `git show` tem muito mais |
+
+A forma que funciona é `grep -cE`: conta, lê o stream inteiro, sem SIGPIPE e sem
+arquivo temporário. Devolve 1 quando não acha nada, daí o `|| true`.
+
+---
+
 ## Arquitetura
 
 Ports & Adapters, com uma decisão de projeto que é a tese inteira: `Retriever` e
@@ -970,8 +1062,9 @@ tools/check_readme.py          canário da documentação (fora do pacote: não 
 tools/web_check.py             parte da PoC, é quem audita a PoC — texto e tela)
 ```
 
-**3 539 linhas de Python** em `src/`, 2 107 de front em `frontend/src/`,
-16 scripts numerados em `scripts/` (`00-setup` a `15-web-restart`), e um
+**3 539 linhas de Python** em `src/`, 2 271 de front em `frontend/src/` (fora o
+`snapshot.json`, que tem 201 e é **gerado** pelo `17-web-static.sh`),
+22 scripts numerados em `scripts/` (`00-setup` a `21-adopt-repo`), e um
 `Taskfile.yaml` que chama script — nunca comando ad-hoc.
 
 O servidor web é **adapter driving**, no mesmo sentido do `cli.py`: ele traduz
